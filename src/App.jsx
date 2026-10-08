@@ -87,10 +87,10 @@ export default function App() {
 
       <main className="flex-1 overflow-auto min-h-0 p-3 sm:p-6">
         {vistaFinal === 'inicio' && <Inicio user={user} direcciones={direcciones} onNavigate={navigate} />}
+        {vistaFinal === 'dal-dashboard' && <DALView user={user} dashboardOnly />}
         {vistaFinal === 'litigio' && <DALView user={user} />}
-        {vistaFinal === 'litigio-dashboard' && <DALView user={user} dashboardOnly />}
+        {vistaFinal === 'dcyc-dashboard' && <ConveniosReport />}
         {vistaFinal === 'convenios' && <ConveniosView user={user} />}
-        {vistaFinal === 'convenios-reporte' && <ConveniosReport />}
         {encontrado?.rubro.enConstruccion && vistaFinal !== 'inicio' && (
           <EnConstruccion direccion={encontrado.direccion} rubro={encontrado.rubro} onNavigate={navigate} />
         )}

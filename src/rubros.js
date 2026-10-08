@@ -1,14 +1,21 @@
-// Rubros de seguimiento por dirección. Para sumar una dirección o un rubro nuevo,
-// se agrega aquí y se le da su vista en App.jsx; el menú y el inicio se arman solos.
+// Rubros de seguimiento por dirección. Cada dirección tiene su Dashboard, sus
+// Reportes y sus subdirecciones. Para sumar una dirección o un rubro nuevo se agrega
+// aquí y se le da su vista en App.jsx; el menú y el inicio se arman solos.
 //
 // `permiso` debe coincidir con permisos() de server.js.
 // Colores: solo la paleta INE 2026 (gris oxford #454247, beige #C5A989, gris cálido
-// #DDD4CE, gris medio #828A91 y sus matices); cada dirección alterna cuál domina.
+// #DDD4CE, gris medio #828A91, gris claro #C5C9CC y sus matices).
 
 export const permisos = (u) => ({
   litigio:   u?.role === 'admin' || u?.role === 'ejecutiva' || u?.direccion === 'asuntos_laborales',
   convenios: u?.role === 'admin' || u?.direccion === 'contratos_convenios',
 })
+
+// Tonos de las subdirecciones: la primera de cada dirección en beige, la segunda en gris.
+export const TONOS = {
+  beige: { acento: '#C5A989', fondo: '#F7F0E8', icono: '#EADBC8', trazo: '#6E5638' },
+  gris:  { acento: '#828A91', fondo: '#EFF1F2', icono: '#DCE0E3', trazo: '#454247' },
+}
 
 const fmt = (n) => Number(n || 0).toLocaleString('es-MX')
 
@@ -17,15 +24,17 @@ export const DIRECCIONES = [
     key: 'asuntos_laborales',
     label: 'Asuntos Laborales',
     corto: 'DAL',
-    tema: { fondo: '#C5A989', texto: '#000000', sutil: '#454247', icono: '#F3ECE4', trazo: '#454247' },
+    tema: { fondo: '#C5A989', texto: '#000000', sutil: '#454247' },
     rubros: [
-      { vista: 'litigio', label: 'Subdirección de Litigio', icono: 'balanza', permiso: 'litigio',
+      { tipo: 'dashboard', vista: 'dal-dashboard', label: 'Dashboard', icono: 'dashboard', permiso: 'litigio',
+        descripcion: 'Resumen y gráficas de la dirección.',
+        cifra: (r) => r.litigio && { num: fmt(r.litigio.etapas), label: 'etapas' } },
+      { tipo: 'reportes', vista: 'dal-reportes', label: 'Reportes', icono: 'reportes', permiso: 'litigio', enConstruccion: true,
+        descripcion: 'Reportes para imprimir o compartir.' },
+      { tipo: 'subdireccion', tono: 'beige', vista: 'litigio', label: 'Subdirección de Litigio', icono: 'balanza', permiso: 'litigio',
         descripcion: 'Actores, emplazamientos, sentencias, amparos y demás etapas del litigio.',
         cifra: (r) => r.litigio && { num: fmt(r.litigio.registros), label: 'registros' } },
-      { vista: 'litigio-dashboard', label: 'Dashboard de Litigio', icono: 'grafica', permiso: 'litigio',
-        descripcion: 'Resumen y gráficas del litigio.',
-        cifra: (r) => r.litigio && { num: fmt(r.litigio.etapas), label: 'etapas' } },
-      { vista: 'consulta', label: 'Subdirección de Consulta', icono: 'consulta', permiso: 'litigio', enConstruccion: true,
+      { tipo: 'subdireccion', tono: 'gris', vista: 'consulta', label: 'Subdirección de Consulta', icono: 'consulta', permiso: 'litigio', enConstruccion: true,
         descripcion: 'Se está definiendo qué se reportará.' },
     ],
   },
@@ -33,20 +42,22 @@ export const DIRECCIONES = [
     key: 'contratos_convenios',
     label: 'Contratos y Convenios',
     corto: 'DCyC',
-    tema: { fondo: '#454247', texto: '#FFFFFF', sutil: '#DDD4CE', icono: '#EDEAE6', trazo: '#454247' },
+    tema: { fondo: '#454247', texto: '#FFFFFF', sutil: '#DDD4CE' },
     rubros: [
-      { vista: 'convenios', label: 'Convenios', icono: 'documento', permiso: 'convenios',
+      { tipo: 'dashboard', vista: 'dcyc-dashboard', label: 'Dashboard', icono: 'dashboard', permiso: 'convenios',
+        descripcion: 'Estatus, vencimientos y gráficas de convenios.',
+        cifra: (r) => r.convenios && {
+          num: fmt(r.convenios.por_vencer), label: 'vencen en 5 días', alerta: r.convenios.por_vencer > 0,
+        } },
+      { tipo: 'reportes', vista: 'dcyc-reportes', label: 'Reportes', icono: 'reportes', permiso: 'convenios', enConstruccion: true,
+        descripcion: 'Reportes para imprimir o compartir.' },
+      { tipo: 'subdireccion', tono: 'beige', vista: 'convenios', label: 'Subdirección de Convenios', icono: 'documento', permiso: 'convenios',
         descripcion: 'Registro y etapas de revisión de cada convenio.',
         cifra: (r) => r.convenios && {
           num: fmt(r.convenios.total), label: 'convenios',
           nota: r.convenios.en_tramite ? `${fmt(r.convenios.en_tramite)} en trámite` : null,
         } },
-      { vista: 'convenios-reporte', label: 'Reporte de Convenios', icono: 'pastel', permiso: 'convenios',
-        descripcion: 'Estatus, vencimientos y gráficas de convenios.',
-        cifra: (r) => r.convenios && {
-          num: fmt(r.convenios.por_vencer), label: 'vencen en 5 días', alerta: r.convenios.por_vencer > 0,
-        } },
-      { vista: 'contratos', label: 'Contratos', icono: 'firma', permiso: 'convenios', enConstruccion: true,
+      { tipo: 'subdireccion', tono: 'gris', vista: 'contratos', label: 'Subdirección de Contratos', icono: 'firma', permiso: 'convenios', enConstruccion: true,
         descripcion: 'Se está definiendo qué se reportará.' },
     ],
   },

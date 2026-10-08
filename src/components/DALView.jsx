@@ -629,8 +629,8 @@ function Dashboard({ store }) {
 
       {/* Header */}
       <div>
-        <h2 style={{ fontSize:18,fontWeight:700,color:'#454247',margin:0 }}>Dashboard — Subdirección de Litigio</h2>
-        <p style={{ color:'#828A91',fontSize:13,marginTop:4 }}>Dirección de Asuntos Laborales · INE DEAJ</p>
+        <h2 style={{ fontSize:18,fontWeight:700,color:'#454247',margin:0 }}>Dashboard — Asuntos Laborales</h2>
+        <p style={{ color:'#828A91',fontSize:13,marginTop:4 }}>Por ahora con datos de la Subdirección de Litigio · INE DEAJ</p>
       </div>
 
       {/* Alertas */}
@@ -930,7 +930,8 @@ const SECTION_TITLES = {
 
 /* ─── MAIN VIEW ─────────────────────────────────────────────────────────── */
 export default function DALView({ user, dashboardOnly = false }) {
-  const [active, setActive] = useState('dashboard')
+  // El dashboard ahora es de la dirección (vista propia); aquí se abre directo en la primera sección.
+  const [active, setActive] = useState(dashboardOnly ? 'dashboard' : 'actores')
   const [store, setStore] = useState(() =>
     Object.fromEntries(SECTIONS.map(s => [s, []]))
   )
@@ -984,7 +985,7 @@ export default function DALView({ user, dashboardOnly = false }) {
         gap:2,padding:'0 12px',borderBottom:'1px solid #E3DFDA',overflowX:'auto',
         scrollbarWidth:'none' }}>
 
-        {NAV.map(n => {
+        {NAV.filter(n => n.key !== 'dashboard').map(n => {
           const isActive = active === n.key
           return (
             <button key={n.key} onClick={() => setActive(n.key)} title={n.label}

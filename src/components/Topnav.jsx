@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import BrandLogo from './BrandLogo.jsx'
+import Icono from './Icono.jsx'
+import { TONOS } from '../rubros.js'
 
 const ROLE_LABELS = { admin: 'Administrador', ejecutiva: 'Dirección Ejecutiva', director: 'Director(a)', subdirector: 'Subdirector(a)' }
 
@@ -46,9 +48,18 @@ export default function Topnav({ direcciones, vista, onNavigate, user, onLogout 
             {abierto === d.key && (
               <div className="absolute top-full mt-1 left-0 bg-white rounded-lg py-1 z-50"
                 style={{ border: '1px solid #E3DFDA', boxShadow: '0 8px 24px rgba(0,0,0,.14)', minWidth: 230 }}>
-                {d.rubros.map(r => (
+                {d.rubros.filter(r => r.tipo !== 'subdireccion').map(r => (
                   <DropItem key={r.vista} active={vista === r.vista} onClick={() => ir(r.vista)}
-                    label={r.label} enConstruccion={r.enConstruccion} />
+                    label={r.label} icono={r.icono} enConstruccion={r.enConstruccion} />
+                ))}
+                {d.rubros.some(r => r.tipo === 'subdireccion') && (
+                  <p className="px-4 pt-2.5 pb-1 text-ine-muted font-semibold" style={{ fontSize: 10, borderTop: '1px solid #EDEAE6', marginTop: 4 }}>
+                    Subdirecciones
+                  </p>
+                )}
+                {d.rubros.filter(r => r.tipo === 'subdireccion').map(r => (
+                  <DropItem key={r.vista} active={vista === r.vista} onClick={() => ir(r.vista)}
+                    label={r.label} icono={r.icono} tono={TONOS[r.tono]} enConstruccion={r.enConstruccion} />
                 ))}
               </div>
             )}
@@ -94,13 +105,22 @@ function NavBtn({ active, onClick, label, hasArrow = false, expanded }) {
   )
 }
 
-function DropItem({ active, onClick, label, enConstruccion }) {
+function DropItem({ active, onClick, label, icono, tono, enConstruccion }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-left hover:bg-ine-bg transition-colors"
-      style={active ? { color: '#000', fontWeight: 700, background: '#F7F5F3' } : { color: '#454247' }}
+      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-ine-bg transition-colors"
+      style={{
+        ...(active ? { color: '#000', fontWeight: 700, background: '#F7F5F3' } : { color: '#454247' }),
+        ...(tono ? { borderLeft: `3px solid ${tono.acento}`, paddingLeft: 13 } : {}),
+      }}
     >
+      {icono && (
+        <span className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+          style={{ background: tono ? tono.icono : '#EDEAE6' }}>
+          <Icono nombre={icono} color={tono ? tono.trazo : '#454247'} size={14} />
+        </span>
+      )}
       <span className="flex-1">{label}</span>
       {enConstruccion && (
         <span className="px-1.5 py-0.5 rounded font-semibold" style={{ fontSize: 10, background: '#DDD4CE', color: '#454247' }}>

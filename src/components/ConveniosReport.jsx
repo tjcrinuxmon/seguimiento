@@ -101,7 +101,7 @@ export default function ConveniosReport() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#000000' }}>Reportes · Convenios 2026</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#000000' }}>Dashboard · Contratos y Convenios 2026</h1>
         <p style={{ fontSize: 13, color: '#828A91', marginTop: 2 }}>{stats.total} convenios registrados en total</p>
       </div>
 
