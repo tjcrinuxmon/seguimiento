@@ -40,3 +40,6 @@ export const getDalSection   = (section)           => api.get(`/dal/${section}`)
 export const createDalRecord = (section, data)     => api.post(`/dal/${section}`, data).then(r => r.data)
 export const updateDalRecord = (section, id, data) => api.put(`/dal/${section}/${id}`, data).then(r => r.data)
 export const deleteDalRecord = (section, id)       => api.delete(`/dal/${section}/${id}`).then(r => r.data)
+
+// Cifras de la pantalla de inicio
+export const getResumen = () => api.get('/resumen').then(r => r.data)

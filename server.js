@@ -91,6 +91,30 @@ app.use('/api', (req, res, next) => {
   }
 })
 
+// ─── Resumen para la pantalla de inicio (solo de los rubros que el usuario ve) ─
+const hoyLocal = (dias = 0) => {
+  const d = new Date(); d.setDate(d.getDate() + dias)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+app.get('/api/resumen', (req, res) => {
+  const p = permisos(req.user)
+  const out = {}
+  if (p.litigio) {
+    const r = db.prepare('SELECT COUNT(*) AS registros, COUNT(DISTINCT section) AS etapas FROM dal_records').get()
+    out.litigio = r
+  }
+  if (p.convenios) {
+    out.convenios = db.prepare(`
+      SELECT COUNT(*) AS total,
+             COALESCE(SUM(estatus IN ('revision', 'revision_interna', 'validacion')), 0) AS en_tramite,
+             COALESCE(SUM(fecha_vencimiento BETWEEN ? AND ?), 0) AS por_vencer
+      FROM convenios
+    `).get(hoyLocal(0), hoyLocal(5))
+  }
+  res.json(out)
+})
+
 // ─── Usuarios (para el campo "Responsable" de Convenios) ──────────────────────
 app.get('/api/users', exigir('convenios'), (req, res) => {
   const { role, direccion } = req.user
