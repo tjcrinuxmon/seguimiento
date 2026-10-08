@@ -977,27 +977,30 @@ export default function DALView({ user, dashboardOnly = false }) {
   return (
     <AbogadosCtx.Provider value={{ abogados, addAbogado }}>
     <div style={{ display:'flex',flexDirection:'column',overflow:'hidden',
-      height:'calc(100vh - 120px)',borderRadius:10,border:'1px solid #E3DFDA',
+      height:'100%',minHeight:420,borderRadius:10,border:'1px solid #E3DFDA',
       boxShadow:'0 2px 8px rgba(0,0,0,.07)' }}>
 
       {/* Top tab bar */}
       {!dashboardOnly && <nav style={{ background:'#fff',flexShrink:0,display:'flex',alignItems:'center',
-        gap:2,padding:'0 12px',borderBottom:'1px solid #E3DFDA',overflowX:'auto',
+        gap:2,padding:'6px 12px',borderBottom:'1px solid #E3DFDA',overflowX:'auto',
         scrollbarWidth:'none' }}>
 
         {NAV.filter(n => n.key !== 'dashboard').map(n => {
           const isActive = active === n.key
           return (
             <button key={n.key} onClick={() => setActive(n.key)} title={n.label}
-              style={{ display:'flex',alignItems:'center',justifyContent:'center',
+              aria-label={n.label} aria-current={isActive ? 'page' : undefined}
+              style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:6,
                 padding:'7px 10px',borderRadius:6,border:'none',cursor:'pointer',
-                flexShrink:0,
+                flexShrink:0,fontSize:12,fontWeight:isActive ? 700 : 500,whiteSpace:'nowrap',
                 color: isActive ? '#fff' : '#828A91',
                 background: isActive ? '#454247' : 'transparent',
                 transition:'all .15s' }}>
               <span style={{ display:'flex',alignItems:'center',width:18,height:18,color:'inherit' }}>
                 {ICONS[n.key]}
               </span>
+              {/* La pestaña activa siempre muestra su nombre; las demás, en pantallas anchas. */}
+              <span className={isActive ? '' : 'hidden xl:inline'}>{n.label}</span>
             </button>
           )
         })}

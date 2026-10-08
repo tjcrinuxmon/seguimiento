@@ -3,6 +3,7 @@ import BrandLogo from './components/BrandLogo.jsx'
 import Topnav from './components/Topnav.jsx'
 import Inicio from './components/Inicio.jsx'
 import EnConstruccion from './components/EnConstruccion.jsx'
+import Contexto from './components/Contexto.jsx'
 import DALView from './components/DALView.jsx'
 import ConveniosView from './components/ConveniosView.jsx'
 import ConveniosReport from './components/ConveniosReport.jsx'
@@ -86,13 +87,23 @@ export default function App() {
       <Topnav direcciones={direcciones} vista={vistaFinal} onNavigate={navigate} user={user} onLogout={handleLogout} />
 
       <main className="flex-1 overflow-auto min-h-0 p-3 sm:p-6">
-        {vistaFinal === 'inicio' && <Inicio user={user} direcciones={direcciones} onNavigate={navigate} />}
-        {vistaFinal === 'dal-dashboard' && <DALView user={user} dashboardOnly />}
-        {vistaFinal === 'litigio' && <DALView user={user} />}
-        {vistaFinal === 'dcyc-dashboard' && <ConveniosReport />}
-        {vistaFinal === 'convenios' && <ConveniosView user={user} />}
-        {encontrado?.rubro.enConstruccion && vistaFinal !== 'inicio' && (
-          <EnConstruccion direccion={encontrado.direccion} rubro={encontrado.rubro} onNavigate={navigate} />
+        {vistaFinal === 'inicio' ? (
+          <Inicio user={user} direcciones={direcciones} onNavigate={navigate} />
+        ) : (
+          // Litigio y su dashboard ocupan el alto disponible (tienen su propio scroll);
+          // las demás vistas crecen hacia abajo y hace scroll el <main>.
+          <div className={['litigio', 'dal-dashboard'].includes(vistaFinal) ? 'flex flex-col h-full' : ''}>
+            <Contexto direccion={encontrado.direccion} rubro={encontrado.rubro} onNavigate={navigate} />
+            <div className="flex-1 min-h-0">
+              {vistaFinal === 'dal-dashboard' && <DALView user={user} dashboardOnly />}
+              {vistaFinal === 'litigio' && <DALView user={user} />}
+              {vistaFinal === 'dcyc-dashboard' && <ConveniosReport />}
+              {vistaFinal === 'convenios' && <ConveniosView user={user} />}
+              {encontrado.rubro.enConstruccion && (
+                <EnConstruccion direccion={encontrado.direccion} rubro={encontrado.rubro} onNavigate={navigate} />
+              )}
+            </div>
+          </div>
         )}
       </main>
 
