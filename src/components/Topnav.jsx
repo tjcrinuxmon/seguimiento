@@ -48,18 +48,19 @@ export default function Topnav({ direcciones, vista, onNavigate, user, onLogout 
             {abierto === d.key && (
               <div className="absolute top-full mt-1 left-0 bg-white rounded-lg py-1 z-50"
                 style={{ border: '1px solid #E3DFDA', boxShadow: '0 8px 24px rgba(0,0,0,.14)', minWidth: 230 }}>
-                {d.rubros.filter(r => r.tipo !== 'subdireccion').map(r => (
-                  <DropItem key={r.vista} active={vista === r.vista} onClick={() => ir(r.vista)}
-                    label={r.label} icono={r.icono} enConstruccion={r.enConstruccion} />
-                ))}
                 {d.rubros.some(r => r.tipo === 'subdireccion') && (
-                  <p className="px-4 pt-2.5 pb-1 text-ine-muted font-semibold" style={{ fontSize: 10, borderTop: '1px solid #EDEAE6', marginTop: 4 }}>
+                  <p className="px-4 pt-2.5 pb-1 text-ine-muted font-semibold" style={{ fontSize: 10 }}>
                     Subdirecciones
                   </p>
                 )}
                 {d.rubros.filter(r => r.tipo === 'subdireccion').map(r => (
                   <DropItem key={r.vista} active={vista === r.vista} onClick={() => ir(r.vista)}
                     label={r.label} icono={r.icono} tono={TONOS[r.tono]} enConstruccion={r.enConstruccion} />
+                ))}
+                <div style={{ borderTop: '1px solid #EDEAE6', marginTop: 4, paddingTop: 4 }} />
+                {d.rubros.filter(r => r.tipo !== 'subdireccion').map(r => (
+                  <DropItem key={r.vista} active={vista === r.vista} onClick={() => ir(r.vista)}
+                    label={r.label} icono={r.icono} enConstruccion={r.enConstruccion} />
                 ))}
               </div>
             )}

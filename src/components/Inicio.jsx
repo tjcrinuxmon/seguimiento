@@ -143,13 +143,6 @@ export default function Inicio({ user, direcciones, onNavigate }) {
               </header>
 
               <div className="p-4 flex flex-col gap-4" style={{ background: '#FCFBFA' }}>
-                {generales.length > 0 && (
-                  <div className="flex gap-3">
-                    {generales.map(r => (
-                      <Mosaico key={r.vista} rubro={r} cifra={cifraDe(r)} cargando={cargando} onClick={() => onNavigate(r.vista)} />
-                    ))}
-                  </div>
-                )}
                 {subdirs.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-ine-muted mb-2">Subdirecciones</p>
@@ -158,6 +151,13 @@ export default function Inicio({ user, direcciones, onNavigate }) {
                         <Subdireccion key={r.vista} rubro={r} cifra={cifraDe(r)} cargando={cargando} onClick={() => onNavigate(r.vista)} />
                       ))}
                     </div>
+                  </div>
+                )}
+                {generales.length > 0 && (
+                  <div className="flex gap-3 pt-4" style={{ borderTop: '1px solid #EDEAE6' }}>
+                    {generales.map(r => (
+                      <Mosaico key={r.vista} rubro={r} cifra={cifraDe(r)} cargando={cargando} onClick={() => onNavigate(r.vista)} />
+                    ))}
                   </div>
                 )}
               </div>
