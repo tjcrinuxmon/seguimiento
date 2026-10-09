@@ -6,7 +6,8 @@ import EnConstruccion from './components/EnConstruccion.jsx'
 import Contexto from './components/Contexto.jsx'
 import DALView from './components/DALView.jsx'
 import ConveniosView from './components/ConveniosView.jsx'
-import ConveniosReport from './components/ConveniosReport.jsx'
+import DashboardDAL from './components/tablero/DashboardDAL.jsx'
+import DashboardDCyC from './components/tablero/DashboardDCyC.jsx'
 import LoginPage from './components/LoginPage.jsx'
 import { ssoLogin } from './api.js'
 import { getToken, getUser, setAuth, clearAuth } from './auth.js'
@@ -90,14 +91,14 @@ export default function App() {
         {vistaFinal === 'inicio' ? (
           <Inicio user={user} direcciones={direcciones} onNavigate={navigate} />
         ) : (
-          // Litigio y su dashboard ocupan el alto disponible (tienen su propio scroll);
+          // Litigio ocupa el alto disponible (tiene su propio scroll);
           // las demás vistas crecen hacia abajo y hace scroll el <main>.
-          <div className={['litigio', 'dal-dashboard'].includes(vistaFinal) ? 'flex flex-col h-full' : ''}>
+          <div className={vistaFinal === 'litigio' ? 'flex flex-col h-full' : ''}>
             <Contexto direccion={encontrado.direccion} rubro={encontrado.rubro} onNavigate={navigate} />
             <div className="flex-1 min-h-0">
-              {vistaFinal === 'dal-dashboard' && <DALView user={user} dashboardOnly />}
+              {vistaFinal === 'dal-dashboard' && <DashboardDAL />}
               {vistaFinal === 'litigio' && <DALView user={user} />}
-              {vistaFinal === 'dcyc-dashboard' && <ConveniosReport />}
+              {vistaFinal === 'dcyc-dashboard' && <DashboardDCyC />}
               {vistaFinal === 'convenios' && <ConveniosView user={user} />}
               {encontrado.rubro.enConstruccion && (
                 <EnConstruccion direccion={encontrado.direccion} rubro={encontrado.rubro} onNavigate={navigate} />

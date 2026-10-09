@@ -1,7 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip,
-         ResponsiveContainer, CartesianGrid } from 'recharts'
 import { getDalSection, createDalRecord, updateDalRecord, deleteDalRecord } from '../api.js'
 
 /* ─── CONSTANTS ─────────────────────────────────────────────────────────── */
@@ -540,293 +538,6 @@ const SCHEMAS = { actores:S_ACTORES, emplaz:S_EMPLAZ, noemplaz:S_NOEMPLAZ, sente
   requerims:S_REQUERIMS, cumplims:S_CUMPLIMS, incidentes:S_INCIDENTES, amparos:S_AMPAROS,
   conciliacion:S_CONCILIACION, oic:S_OIC, reencauz:S_REENCAUZ }
 
-/* ─── DASHBOARD ─────────────────────────────────────────────────────────── */
-function KpiCard({ label, value, sub, color }) {
-  return (
-    <div className="ine-card" style={{ padding:20 }}>
-      <p style={{ fontSize:11,fontWeight:700,color:'#828A91',textTransform:'uppercase',
-        letterSpacing:'0.06em',marginBottom:6 }}>{label}</p>
-      <p style={{ fontSize:30,fontWeight:900,color,marginBottom:2 }}>{value}</p>
-      {sub && <p style={{ fontSize:12,color:'#B2B2B2' }}>{sub}</p>}
-    </div>
-  )
-}
-
-function StatBar({ label, value, total, color }) {
-  const pct = total ? Math.round((value / total) * 100) : 0
-  return (
-    <div style={{ marginBottom:10 }}>
-      <div style={{ display:'flex',justifyContent:'space-between',marginBottom:3 }}>
-        <span style={{ fontSize:12,color:'#828A91' }}>{label}</span>
-        <span style={{ fontSize:12,fontWeight:700,color }}>{value}{total !== undefined ? `/${total}` : ''}</span>
-      </div>
-      <div style={{ background:'#EDEAE6',borderRadius:4,height:6 }}>
-        <div style={{ width:`${pct}%`,height:6,background:color,borderRadius:4,transition:'width .4s ease' }} />
-      </div>
-    </div>
-  )
-}
-
-function Dashboard({ store }) {
-  const { actores,emplaz,sentencias,requerims,cumplims,incidentes,amparos,conciliacion,oic,reencauz,noemplaz } = store
-  const today = new Date(); today.setHours(0,0,0,0)
-  const isUrgent  = ds => { if (!ds) return false; const d = daysUntil(ds); return d !== null && d >= 0 && d <= 7 }
-  const isVencido = ds => { if (!ds) return false; return new Date(ds + 'T00:00:00') < today }
-
-  const vencidos = [
-    ...sentencias.filter(r => isVencido(r.fechaVencimiento) && !r.fechaEntregaTEPJF),
-    ...requerims.filter(r  => isVencido(r.fechaVencimiento) && !r.fechaEntregaTEPJF),
-    ...incidentes.filter(r => isVencido(r.fechaVencimiento)),
-    ...amparos.filter(r    => isVencido(r.fechaVencimiento) && !r.fechaCumplimiento),
-  ]
-  const urgentes = [
-    ...sentencias.filter(r => isUrgent(r.fechaVencimiento) && !r.fechaEntregaTEPJF),
-    ...requerims.filter(r  => isUrgent(r.fechaVencimiento) && !r.fechaEntregaTEPJF),
-    ...incidentes.filter(r => isUrgent(r.fechaVencimiento)),
-    ...amparos.filter(r    => isUrgent(r.fechaVencimiento) && !r.fechaCumplimiento),
-  ]
-
-  /* ── chart data ── */
-  const actoresPorAno = ANOS.filter(a => a).map(a => ({
-    name: a,
-    Actores: actores.filter(r => r.ano === a).length,
-  }))
-
-  const byAbogado = {}
-  ;[...sentencias,...requerims,...incidentes,...amparos,...emplaz,...conciliacion].forEach(r => {
-    if (r.abogado) byAbogado[r.abogado] = (byAbogado[r.abogado] || 0) + 1
-  })
-  const abogadoData = Object.entries(byAbogado)
-    .sort((a,b) => b[1]-a[1]).slice(0,8)
-    .map(([name, value]) => ({ name, value }))
-
-  const cumplimData = [
-    { name:'Presentada', value:cumplims.filter(r=>r.estatus==='PRESENTADA').length,           color:'#F59E0B' },
-    { name:'Concluido',  value:cumplims.filter(r=>r.estatus==='FORMALMENTE CONCLUIDO').length, color:'#10B981' },
-    { name:'Sin estatus',value:cumplims.filter(r=>!r.estatus).length,                          color:'#C4B8D0' },
-  ].filter(d => d.value > 0)
-
-  const in30 = ds => { if (!ds) return false; const d = daysUntil(ds); return d !== null && d >= 0 && d <= 30 }
-  const proximos = [
-    ...sentencias.filter(r => in30(r.fechaVencimiento) && !r.fechaEntregaTEPJF)
-      .map(r => ({ exp:r.expediente, tipo:'Sentencia', d:daysUntil(r.fechaVencimiento) })),
-    ...requerims.filter(r => in30(r.fechaVencimiento) && !r.fechaEntregaTEPJF)
-      .map(r => ({ exp:r.expediente, tipo:'Requerim.', d:daysUntil(r.fechaVencimiento) })),
-    ...incidentes.filter(r => in30(r.fechaVencimiento))
-      .map(r => ({ exp:r.expediente, tipo:'Incidente', d:daysUntil(r.fechaVencimiento) })),
-    ...amparos.filter(r => in30(r.fechaVencimiento) && !r.fechaCumplimiento)
-      .map(r => ({ exp:r.expediente, tipo:'Amparo',    d:daysUntil(r.fechaVencimiento) })),
-  ].sort((a,b) => a.d - b.d)
-
-  const sentPend = sentencias.filter(r => !r.fechaEntregaTEPJF).length
-  const reqPend  = requerims.filter(r => !r.fechaEntregaTEPJF).length
-
-  const tooltipStyle = { fontSize:12,borderRadius:8,border:'1px solid #E3DFDA',boxShadow:'0 4px 12px rgba(0,0,0,.08)' }
-  const axTick = { fontSize:11,fill:'#828A91' }
-
-  return (
-    <div className="fade-in" style={{ display:'flex',flexDirection:'column',gap:18 }}>
-
-      {/* Header */}
-      <div>
-        <h2 style={{ fontSize:18,fontWeight:700,color:'#454247',margin:0 }}>Dashboard — Asuntos Laborales</h2>
-        <p style={{ color:'#828A91',fontSize:13,marginTop:4 }}>Por ahora con datos de la Subdirección de Litigio · INE DEAJ</p>
-      </div>
-
-      {/* Alertas */}
-      {vencidos.length > 0 && (
-        <div className="ine-card" style={{ padding:'12px 18px',borderLeft:'4px solid #EF4444',background:'#FEF2F2' }}>
-          <p style={{ fontWeight:700,color:'#B91C1C',fontSize:13,margin:0 }}>
-            ⚠ {vencidos.length} plazo{vencidos.length!==1?'s':''} vencido{vencidos.length!==1?'s':''} sin entrega registrada
-          </p>
-          <p style={{ color:'#DC2626',fontSize:12,marginTop:2,marginBottom:0 }}>Revisar sentencias, requerimientos, incidentes y amparos.</p>
-        </div>
-      )}
-      {urgentes.length > 0 && (
-        <div className="ine-card" style={{ padding:'12px 18px',borderLeft:'4px solid #F59E0B',background:'#FFFBEB' }}>
-          <p style={{ fontWeight:700,color:'#92400E',fontSize:13,margin:0 }}>
-            🔔 {urgentes.length} vencimiento{urgentes.length!==1?'s':''} en los próximos 7 días
-          </p>
-        </div>
-      )}
-
-      {/* KPI grid */}
-      <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12 }}>
-        <KpiCard label="Actores / Expedientes" value={actores.length}      color="#454247" />
-        <KpiCard label="Emplazamientos"         value={emplaz.length}      color="#3B82F6" />
-        <KpiCard label="Sentencias"             value={sentencias.length}  color="#10B981" />
-        <KpiCard label="Requerimientos"         value={requerims.length}   color="#F59E0B" />
-        <KpiCard label="Cumplimientos" value={cumplims.length}
-          sub={`${cumplims.filter(r=>r.estatus==='FORMALMENTE CONCLUIDO').length} concluidos`} color="#8B5CF6" />
-        <KpiCard label="Incidentes"   value={incidentes.length}   color="#EF4444" />
-        <KpiCard label="Amparos"      value={amparos.length}      color="#14B8A6" />
-        <KpiCard label="Conciliación" value={conciliacion.length} color="#C5A989" />
-      </div>
-
-      {/* Charts row 1 */}
-      <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:16 }}>
-
-        {/* Actores por año */}
-        <div className="ine-card" style={{ padding:20 }}>
-          <p style={{ fontWeight:700,color:'#454247',fontSize:13,marginBottom:16 }}>Actores por Año</p>
-          <ResponsiveContainer width="100%" height={190}>
-            <BarChart data={actoresPorAno} margin={{ top:4,right:8,left:-20,bottom:0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#EDEAE6" vertical={false} />
-              <XAxis dataKey="name" tick={axTick} axisLine={false} tickLine={false} />
-              <YAxis tick={{ ...axTick,fill:'#B2B2B2' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill:'#EDEAE6' }} />
-              <Bar dataKey="Actores" fill="#454247" radius={[4,4,0,0]} maxBarSize={48} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Carga por abogado */}
-        <div className="ine-card" style={{ padding:20 }}>
-          <p style={{ fontWeight:700,color:'#454247',fontSize:13,marginBottom:16 }}>Carga por Abogado</p>
-          {abogadoData.length === 0
-            ? <p style={{ color:'#B2B2B2',fontSize:13 }}>Sin datos</p>
-            : (
-              <ResponsiveContainer width="100%" height={190}>
-                <BarChart data={abogadoData} layout="vertical" margin={{ top:0,right:8,left:0,bottom:0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#EDEAE6" horizontal={false} />
-                  <XAxis type="number" tick={{ ...axTick,fill:'#B2B2B2' }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" width={76} tick={axTick} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill:'#EDEAE6' }} />
-                  <Bar dataKey="value" name="Asuntos" fill="#3B82F6" radius={[0,4,4,0]} maxBarSize={18} />
-                </BarChart>
-              </ResponsiveContainer>
-            )
-          }
-        </div>
-      </div>
-
-      {/* Charts row 2 */}
-      <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:16 }}>
-
-        {/* Cumplimientos donut */}
-        <div className="ine-card" style={{ padding:20 }}>
-          <p style={{ fontWeight:700,color:'#454247',fontSize:13,marginBottom:12 }}>Cumplimientos por Estatus</p>
-          {cumplimData.length === 0
-            ? <p style={{ color:'#B2B2B2',fontSize:13 }}>Sin datos</p>
-            : (
-              <div style={{ display:'flex',alignItems:'center',gap:20 }}>
-                <ResponsiveContainer width={150} height={150}>
-                  <PieChart>
-                    <Pie data={cumplimData} dataKey="value" cx="50%" cy="50%"
-                      innerRadius={42} outerRadius={66} paddingAngle={3}>
-                      {cumplimData.map((e,i) => <Cell key={i} fill={e.color} />)}
-                    </Pie>
-                    <Tooltip contentStyle={tooltipStyle} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ flex:1,display:'flex',flexDirection:'column',gap:8 }}>
-                  {cumplimData.map(d => (
-                    <div key={d.name} style={{ display:'flex',alignItems:'center',gap:8 }}>
-                      <div style={{ width:10,height:10,borderRadius:2,background:d.color,flexShrink:0 }} />
-                      <span style={{ fontSize:12,color:'#828A91',flex:1 }}>{d.name}</span>
-                      <span style={{ fontSize:13,fontWeight:700,color:d.color }}>{d.value}</span>
-                    </div>
-                  ))}
-                  <div style={{ borderTop:'1px solid #EDEAE6',paddingTop:8,
-                    display:'flex',justifyContent:'space-between' }}>
-                    <span style={{ fontSize:12,color:'#828A91' }}>Total</span>
-                    <span style={{ fontSize:13,fontWeight:700,color:'#454247' }}>{cumplims.length}</span>
-                  </div>
-                </div>
-              </div>
-            )
-          }
-        </div>
-
-        {/* Próximos vencimientos */}
-        <div className="ine-card" style={{ padding:20 }}>
-          <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:12 }}>
-            <p style={{ fontWeight:700,color:'#454247',fontSize:13,margin:0 }}>Vencimientos — próximos 30 días</p>
-            {proximos.length > 0 && (
-              <span style={{ background:'#FEE2E2',color:'#B91C1C',fontSize:11,fontWeight:700,
-                padding:'2px 7px',borderRadius:20 }}>{proximos.length}</span>
-            )}
-          </div>
-          {proximos.length === 0
-            ? <p style={{ color:'#10B981',fontSize:13,textAlign:'center',paddingTop:28 }}>✓ Sin vencimientos próximos</p>
-            : (
-              <div style={{ display:'flex',flexDirection:'column',gap:5,maxHeight:200,overflowY:'auto' }}>
-                {proximos.map((p,i) => {
-                  const hot = p.d <= 3
-                  return (
-                    <div key={i} style={{ display:'flex',alignItems:'center',gap:8,padding:'5px 8px',
-                      borderRadius:6,background:hot?'#FEF2F2':'#F7F5F3',
-                      border:`1px solid ${hot?'#FECACA':'#E3DFDA'}` }}>
-                      <span style={{ fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,
-                        background:hot?'#EF4444':'#E3DFDA',color:hot?'#fff':'#828A91',whiteSpace:'nowrap' }}>
-                        {p.tipo}
-                      </span>
-                      <span style={{ fontSize:12,fontWeight:600,color:'#454247',flex:1,
-                        overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{p.exp}</span>
-                      <span style={{ fontSize:11,fontWeight:700,color:hot?'#B91C1C':'#828A91',whiteSpace:'nowrap' }}>
-                        {p.d === 0 ? 'Hoy' : `${p.d}d`}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          }
-        </div>
-      </div>
-
-      {/* Row 3 */}
-      <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:16 }}>
-
-        {/* Estado de seguimiento */}
-        <div className="ine-card" style={{ padding:20 }}>
-          <p style={{ fontWeight:700,color:'#454247',fontSize:13,marginBottom:16 }}>Estado de Seguimiento</p>
-          <StatBar label="Sentencias — pendientes TEPJF" value={sentPend}
-            total={sentencias.length} color="#EF4444" />
-          <StatBar label="Sentencias — entregadas" value={sentencias.length - sentPend}
-            total={sentencias.length} color="#10B981" />
-          <div style={{ borderTop:'1px solid #EDEAE6',margin:'12px 0' }} />
-          <StatBar label="Requerimientos — pendientes" value={reqPend}
-            total={requerims.length} color="#F59E0B" />
-          <StatBar label="Requerimientos — entregados" value={requerims.length - reqPend}
-            total={requerims.length} color="#10B981" />
-          <div style={{ borderTop:'1px solid #EDEAE6',margin:'12px 0' }} />
-          <StatBar label="Amparos — pendientes" value={amparos.filter(r=>!r.fechaCumplimiento).length}
-            total={amparos.length} color="#14B8A6" />
-        </div>
-
-        {/* No-emplazamientos + otros */}
-        <div className="ine-card" style={{ padding:20 }}>
-          <p style={{ fontWeight:700,color:'#454247',fontSize:13,marginBottom:12 }}>No-Emplazamientos por Estatus</p>
-          {[
-            { k:'EMPLAZADO',               c:'#10B981' },
-            { k:'EMPLAZAMIENTO PENDIENTE', c:'#F59E0B' },
-            { k:'SE DESECHA',              c:'#EF4444' },
-          ].map(({ k, c }) => (
-            <StatBar key={k} label={k}
-              value={noemplaz.filter(r=>r.estatus===k).length}
-              total={noemplaz.length} color={c} />
-          ))}
-          <div style={{ borderTop:'1px solid #EDEAE6',margin:'12px 0' }} />
-          <div style={{ display:'flex',gap:24 }}>
-            {[
-              { l:'OIC',            v:oic.length,      c:'#8B5CF6' },
-              { l:'Reencauzamiento',v:reencauz.length, c:'#14B8A6' },
-              { l:'No-Emplaz.',     v:noemplaz.length, c:'#EF4444' },
-            ].map(({ l, v, c }) => (
-              <div key={l} style={{ textAlign:'center',flex:1 }}>
-                <p style={{ fontSize:24,fontWeight:900,color:c,margin:0 }}>{v}</p>
-                <p style={{ fontSize:11,color:'#828A91',marginTop:2 }}>{l}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-    </div>
-  )
-}
-
 /* ─── SVG ICONS ─────────────────────────────────────────────────────────── */
 const ICONS = {
   dashboard: (
@@ -907,7 +618,6 @@ const ICONS = {
 
 /* ─── NAV CONFIG ────────────────────────────────────────────────────────── */
 const NAV = [
-  { key:'dashboard',   label:'Dashboard'         },
   { key:'actores',     label:'Actores'           },
   { key:'emplaz',      label:'Emplazamientos'    },
   { key:'noemplaz',    label:'No Emplazamientos' },
@@ -929,9 +639,9 @@ const SECTION_TITLES = {
 }
 
 /* ─── MAIN VIEW ─────────────────────────────────────────────────────────── */
-export default function DALView({ user, dashboardOnly = false }) {
-  // El dashboard ahora es de la dirección (vista propia); aquí se abre directo en la primera sección.
-  const [active, setActive] = useState(dashboardOnly ? 'dashboard' : 'actores')
+export default function DALView({ user }) {
+  // El dashboard es de la dirección (tablero/DashboardDAL.jsx); aquí se abre en la primera sección.
+  const [active, setActive] = useState('actores')
   const [store, setStore] = useState(() =>
     Object.fromEntries(SECTIONS.map(s => [s, []]))
   )
@@ -981,11 +691,11 @@ export default function DALView({ user, dashboardOnly = false }) {
       boxShadow:'0 2px 8px rgba(0,0,0,.07)' }}>
 
       {/* Top tab bar */}
-      {!dashboardOnly && <nav style={{ background:'#fff',flexShrink:0,display:'flex',alignItems:'center',
+      {<nav style={{ background:'#fff',flexShrink:0,display:'flex',alignItems:'center',
         gap:2,padding:'6px 12px',borderBottom:'1px solid #E3DFDA',overflowX:'auto',
         scrollbarWidth:'none' }}>
 
-        {NAV.filter(n => n.key !== 'dashboard').map(n => {
+        {NAV.map(n => {
           const isActive = active === n.key
           return (
             <button key={n.key} onClick={() => setActive(n.key)} title={n.label}
@@ -1022,8 +732,6 @@ export default function DALView({ user, dashboardOnly = false }) {
           <div className="ine-card" style={{ padding:24,textAlign:'center',color:'#DC2626' }}>
             {loadError}
           </div>
-        ) : active === 'dashboard' ? (
-          <Dashboard store={store} />
         ) : (
           <SectionView
             key={active}
