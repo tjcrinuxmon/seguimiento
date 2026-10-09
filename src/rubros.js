@@ -1,6 +1,7 @@
-// Rubros de seguimiento por dirección. Cada dirección tiene su Dashboard, sus
-// Reportes y sus subdirecciones. Para sumar una dirección o un rubro nuevo se agrega
-// aquí y se le da su vista en App.jsx; el menú y el inicio se arman solos.
+// Rubros de seguimiento por dirección. Cada dirección tiene sus subdirecciones y su
+// Dashboard; los Reportes se agregarán como rubro tipo 'reportes' cuando se definan.
+// Para sumar una dirección o un rubro nuevo se agrega aquí y se le da su vista en
+// App.jsx; el menú y el inicio se arman solos.
 //
 // `permiso` debe coincidir con permisos() de server.js.
 // Colores: solo la paleta INE 2026 (gris oxford #454247, beige #C5A989, gris cálido
@@ -29,8 +30,6 @@ export const DIRECCIONES = [
       { tipo: 'dashboard', vista: 'dal-dashboard', label: 'Dashboard', icono: 'dashboard', permiso: 'litigio',
         descripcion: 'Resumen y gráficas de la dirección.',
         cifra: (r) => r.litigio && { num: fmt(r.litigio.etapas), label: 'etapas' } },
-      { tipo: 'reportes', vista: 'dal-reportes', label: 'Reportes', icono: 'reportes', permiso: 'litigio', enConstruccion: true,
-        descripcion: 'Reportes para imprimir o compartir.' },
       { tipo: 'subdireccion', tono: 'beige', vista: 'litigio', label: 'Subdirección de Litigio', icono: 'balanza', permiso: 'litigio',
         descripcion: 'Actores, emplazamientos, sentencias, amparos y demás etapas del litigio.',
         cifra: (r) => r.litigio && { num: fmt(r.litigio.registros), label: 'registros' } },
@@ -49,8 +48,6 @@ export const DIRECCIONES = [
         cifra: (r) => r.convenios && {
           num: fmt(r.convenios.por_vencer), label: 'vencen en 5 días', alerta: r.convenios.por_vencer > 0,
         } },
-      { tipo: 'reportes', vista: 'dcyc-reportes', label: 'Reportes', icono: 'reportes', permiso: 'convenios', enConstruccion: true,
-        descripcion: 'Reportes para imprimir o compartir.' },
       { tipo: 'subdireccion', tono: 'beige', vista: 'convenios', label: 'Subdirección de Convenios', icono: 'documento', permiso: 'convenios',
         descripcion: 'Registro y etapas de revisión de cada convenio.',
         cifra: (r) => r.convenios && {
