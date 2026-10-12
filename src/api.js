@@ -43,3 +43,16 @@ export const deleteDalRecord = (section, id)       => api.delete(`/dal/${section
 
 // Cifras de la pantalla de inicio
 export const getResumen = () => api.get('/resumen').then(r => r.data)
+
+// Asuntos Laborales → Recursos y Consultas
+export const getExpedientesRc = ()         => api.get('/rc/expedientes').then(r => r.data)
+export const getExpedienteRc  = (id)       => api.get(`/rc/expedientes/${id}`).then(r => r.data)
+export const getSiguienteRc   = (anio)     => api.get('/rc/siguiente', { params: { anio } }).then(r => r.data)
+export const createExpedienteRc = (data)   => api.post('/rc/expedientes', data).then(r => r.data)
+export const updateExpedienteRc = (id, data) => api.put(`/rc/expedientes/${id}`, data).then(r => r.data)
+export const deleteExpedienteRc = (id)     => api.delete(`/rc/expedientes/${id}`).then(r => r.data)
+
+// Días inhábiles
+export const getInhabiles    = ()               => api.get('/inhabiles').then(r => r.data)
+export const addInhabil      = (fecha, motivo)  => api.post('/inhabiles', { fecha, motivo }).then(r => r.data)
+export const removeInhabil   = (fecha)          => api.delete(`/inhabiles/${fecha}`).then(r => r.data)

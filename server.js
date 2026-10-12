@@ -35,6 +35,8 @@ app.use(express.json({ limit: '2mb' }))
 export const permisos = (u) => ({
   // Asuntos Laborales → Litigio (y su dashboard)
   litigio:   u?.role === 'admin' || u?.role === 'ejecutiva' || u?.direccion === 'asuntos_laborales',
+  // Asuntos Laborales → Recursos y Consultas (por ahora, mismas personas que Litigio)
+  recursos:  u?.role === 'admin' || u?.role === 'ejecutiva' || u?.direccion === 'asuntos_laborales',
   // Contratos y Convenios → Convenios (y su reporte): solo esa dirección y administradores
   convenios: u?.role === 'admin' || u?.direccion === 'contratos_convenios',
 })
@@ -103,6 +105,9 @@ app.get('/api/resumen', (req, res) => {
   if (p.litigio) {
     const r = db.prepare('SELECT COUNT(*) AS registros, COUNT(DISTINCT section) AS etapas FROM dal_records').get()
     out.litigio = r
+  }
+  if (p.recursos) {
+    out.recursos = db.prepare('SELECT COUNT(*) AS expedientes FROM rc_expedientes').get()
   }
   if (p.convenios) {
     out.convenios = db.prepare(`
@@ -199,6 +204,84 @@ app.put('/api/dal/:section/:id', exigir('litigio'), seccionValida, (req, res) =>
 app.delete('/api/dal/:section/:id', exigir('litigio'), seccionValida, (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede eliminar registros' })
   db.prepare('DELETE FROM dal_records WHERE id = ? AND section = ?').run(req.params.id, req.params.section)
+  res.json({ ok: true })
+})
+
+// ─── Asuntos Laborales → Recursos y Consultas ─────────────────────────────────
+const filaRc = (r) => ({ ...JSON.parse(r.data), id: r.id, numero: r.numero, anio: r.anio, updated_at: r.updated_at })
+const anioValido = (a) => Number.isInteger(a) && a >= 2000 && a <= 2100
+
+function leerNumeroAnio(body) {
+  const numero = Number(body?.numero)
+  const anio = Number(body?.anio)
+  if (!Number.isInteger(numero) || numero < 1) return { error: 'El número de expediente debe ser un entero mayor que 0' }
+  if (!anioValido(anio)) return { error: 'Año de expediente inválido' }
+  return { numero, anio }
+}
+
+app.get('/api/rc/expedientes', exigir('recursos'), (req, res) => {
+  const rows = db.prepare('SELECT * FROM rc_expedientes ORDER BY anio DESC, numero DESC').all()
+  res.json(rows.map(filaRc))
+})
+
+// Siguiente número consecutivo del año (para sugerirlo al crear)
+app.get('/api/rc/siguiente', exigir('recursos'), (req, res) => {
+  const anio = Number(req.query.anio) || new Date().getFullYear()
+  const r = db.prepare('SELECT COALESCE(MAX(numero), 0) + 1 AS numero FROM rc_expedientes WHERE anio = ?').get(anio)
+  res.json({ anio, numero: r.numero })
+})
+
+app.get('/api/rc/expedientes/:id', exigir('recursos'), (req, res) => {
+  const row = db.prepare('SELECT * FROM rc_expedientes WHERE id = ?').get(req.params.id)
+  if (!row) return res.status(404).json({ error: 'Expediente no encontrado' })
+  res.json(filaRc(row))
+})
+
+const guardarRc = (req, res, id) => {
+  const na = leerNumeroAnio(req.body)
+  if (na.error) return res.status(400).json({ error: na.error })
+  const { id: _i, numero: _n, anio: _a, updated_at: _u, ...data } = req.body
+  const dup = db.prepare('SELECT id FROM rc_expedientes WHERE numero = ? AND anio = ? AND id IS NOT ?').get(na.numero, na.anio, id ?? null)
+  if (dup) return res.status(409).json({ error: `Ya existe el expediente INE/DEAJ/ALI/${na.numero}/${na.anio}` })
+  if (id) {
+    const r = db.prepare('UPDATE rc_expedientes SET numero=?, anio=?, data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(na.numero, na.anio, JSON.stringify(data), id)
+    if (!r.changes) return res.status(404).json({ error: 'Expediente no encontrado' })
+    return res.json(filaRc(db.prepare('SELECT * FROM rc_expedientes WHERE id = ?').get(id)))
+  }
+  const r = db.prepare('INSERT INTO rc_expedientes (numero, anio, data, created_by_id) VALUES (?,?,?,?)')
+    .run(na.numero, na.anio, JSON.stringify(data), req.user.id)
+  res.status(201).json(filaRc(db.prepare('SELECT * FROM rc_expedientes WHERE id = ?').get(r.lastInsertRowid)))
+}
+
+app.post('/api/rc/expedientes', exigir('recursos'), (req, res) => guardarRc(req, res, null))
+app.put('/api/rc/expedientes/:id', exigir('recursos'), (req, res) => guardarRc(req, res, Number(req.params.id)))
+
+app.delete('/api/rc/expedientes/:id', exigir('recursos'), (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede eliminar expedientes' })
+  db.prepare('DELETE FROM rc_expedientes WHERE id = ?').run(req.params.id)
+  res.json({ ok: true })
+})
+
+// ─── Días inhábiles (para plazos en días hábiles) ─────────────────────────────
+const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
+
+app.get('/api/inhabiles', (req, res) => {
+  res.json(db.prepare('SELECT fecha, motivo FROM dias_inhabiles ORDER BY fecha').all())
+})
+
+app.post('/api/inhabiles', (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede capturar días inhábiles' })
+  const { fecha, motivo } = req.body || {}
+  if (!FECHA_RE.test(fecha || '')) return res.status(400).json({ error: 'Fecha inválida (AAAA-MM-DD)' })
+  db.prepare('INSERT INTO dias_inhabiles (fecha, motivo) VALUES (?, ?) ON CONFLICT(fecha) DO UPDATE SET motivo = excluded.motivo')
+    .run(fecha, (motivo || '').trim() || null)
+  res.status(201).json({ fecha, motivo: (motivo || '').trim() || null })
+})
+
+app.delete('/api/inhabiles/:fecha', (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede quitar días inhábiles' })
+  db.prepare('DELETE FROM dias_inhabiles WHERE fecha = ?').run(req.params.fecha)
   res.json({ ok: true })
 })
 

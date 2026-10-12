@@ -5,6 +5,7 @@ import Inicio from './components/Inicio.jsx'
 import EnConstruccion from './components/EnConstruccion.jsx'
 import Contexto from './components/Contexto.jsx'
 import DALView from './components/DALView.jsx'
+import RecursosView from './recursos/RecursosView.jsx'
 import ConveniosView from './components/ConveniosView.jsx'
 import DashboardDAL from './components/tablero/DashboardDAL.jsx'
 import DashboardDCyC from './components/tablero/DashboardDCyC.jsx'
@@ -98,6 +99,7 @@ export default function App() {
             <div className="flex-1 min-h-0">
               {vistaFinal === 'dal-dashboard' && <DashboardDAL />}
               {vistaFinal === 'litigio' && <DALView user={user} />}
+              {vistaFinal === 'recursos' && <RecursosView user={user} />}
               {vistaFinal === 'dcyc-dashboard' && <DashboardDCyC />}
               {vistaFinal === 'convenios' && <ConveniosView user={user} />}
               {encontrado.rubro.enConstruccion && (
