@@ -1,4 +1,5 @@
 // Campos de un expediente de Recursos y Consultas, agrupados por etapa del procedimiento.
+// (El número y el año del expediente no son campos: los asigna el servidor al crearlo.)
 // La ficha se dibuja a partir de esta lista: para agregar o renombrar un campo basta con
 // cambiarlo aquí (los datos se guardan por su clave `k`).
 //
@@ -24,8 +25,6 @@ export const SECCIONES = [
   {
     etapa: 'recepcion', titulo: 'Recepción de la denuncia',
     campos: [
-      { k: 'numero', label: 'Número', tipo: 'numero', requerido: true, ayuda: 'Forma el expediente INE/DEAJ/ALI/número/año.' },
-      { k: 'anio', label: 'Año', tipo: 'numero', requerido: true },
       { k: 'abogado', label: 'Abogado', tipo: 'texto', sugerencias: 'abogados' },
       { k: 'fecha_recepcion_deaj', label: 'Recepción en la DEAJ', tipo: 'fecha', ayuda: 'Desde aquí corre el término de 6 meses.' },
       { k: 'fecha_recepcion_dal', label: 'Recepción en la DAL', tipo: 'fecha' },

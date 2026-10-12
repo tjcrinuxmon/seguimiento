@@ -209,26 +209,25 @@ app.delete('/api/dal/:section/:id', exigir('litigio'), seccionValida, (req, res)
 
 // ─── Asuntos Laborales → Recursos y Consultas ─────────────────────────────────
 const filaRc = (r) => ({ ...JSON.parse(r.data), id: r.id, numero: r.numero, anio: r.anio, updated_at: r.updated_at })
-const anioValido = (a) => Number.isInteger(a) && a >= 2000 && a <= 2100
-
-function leerNumeroAnio(body) {
-  const numero = Number(body?.numero)
-  const anio = Number(body?.anio)
-  if (!Number.isInteger(numero) || numero < 1) return { error: 'El número de expediente debe ser un entero mayor que 0' }
-  if (!anioValido(anio)) return { error: 'Año de expediente inválido' }
-  return { numero, anio }
+// Número y año del expediente (INE/DEAJ/ALI/{numero}/{anio}): los asigna el servidor al
+// crearlo y ya no cambian. El año es el de la recepción en la DEAJ (o el actual si aún no
+// se captura); el número, el siguiente consecutivo de ese año.
+const anioDe = (data) => {
+  const a = Number(String(data?.fecha_recepcion_deaj || '').slice(0, 4))
+  return a >= 2000 && a <= 2100 ? a : new Date().getFullYear()
 }
+const siguienteNumero = (anio) =>
+  db.prepare('SELECT COALESCE(MAX(numero), 0) + 1 AS numero FROM rc_expedientes WHERE anio = ?').get(anio).numero
 
 app.get('/api/rc/expedientes', exigir('recursos'), (req, res) => {
   const rows = db.prepare('SELECT * FROM rc_expedientes ORDER BY anio DESC, numero DESC').all()
   res.json(rows.map(filaRc))
 })
 
-// Siguiente número consecutivo del año (para sugerirlo al crear)
+// Número que tendría un expediente nuevo de ese año (solo para mostrarlo antes de crearlo)
 app.get('/api/rc/siguiente', exigir('recursos'), (req, res) => {
   const anio = Number(req.query.anio) || new Date().getFullYear()
-  const r = db.prepare('SELECT COALESCE(MAX(numero), 0) + 1 AS numero FROM rc_expedientes WHERE anio = ?').get(anio)
-  res.json({ anio, numero: r.numero })
+  res.json({ anio, numero: siguienteNumero(anio) })
 })
 
 app.get('/api/rc/expedientes/:id', exigir('recursos'), (req, res) => {
@@ -238,20 +237,23 @@ app.get('/api/rc/expedientes/:id', exigir('recursos'), (req, res) => {
 })
 
 const guardarRc = (req, res, id) => {
-  const na = leerNumeroAnio(req.body)
-  if (na.error) return res.status(400).json({ error: na.error })
-  const { id: _i, numero: _n, anio: _a, updated_at: _u, ...data } = req.body
-  const dup = db.prepare('SELECT id FROM rc_expedientes WHERE numero = ? AND anio = ? AND id IS NOT ?').get(na.numero, na.anio, id ?? null)
-  if (dup) return res.status(409).json({ error: `Ya existe el expediente INE/DEAJ/ALI/${na.numero}/${na.anio}` })
+  const { id: _i, numero: _n, anio: _a, updated_at: _u, ...data } = req.body || {}
   if (id) {
-    const r = db.prepare('UPDATE rc_expedientes SET numero=?, anio=?, data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
-      .run(na.numero, na.anio, JSON.stringify(data), id)
+    // El número y el año no se modifican al editar
+    const r = db.prepare('UPDATE rc_expedientes SET data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(JSON.stringify(data), id)
     if (!r.changes) return res.status(404).json({ error: 'Expediente no encontrado' })
     return res.json(filaRc(db.prepare('SELECT * FROM rc_expedientes WHERE id = ?').get(id)))
   }
-  const r = db.prepare('INSERT INTO rc_expedientes (numero, anio, data, created_by_id) VALUES (?,?,?,?)')
-    .run(na.numero, na.anio, JSON.stringify(data), req.user.id)
-  res.status(201).json(filaRc(db.prepare('SELECT * FROM rc_expedientes WHERE id = ?').get(r.lastInsertRowid)))
+  // Asignar número y crear en una sola transacción, para que dos capturas simultáneas
+  // no obtengan el mismo número.
+  const crear = db.transaction(() => {
+    const anio = anioDe(data)
+    const numero = siguienteNumero(anio)
+    return db.prepare('INSERT INTO rc_expedientes (numero, anio, data, created_by_id) VALUES (?,?,?,?)')
+      .run(numero, anio, JSON.stringify(data), req.user.id).lastInsertRowid
+  })
+  const nuevoId = crear.immediate()
+  res.status(201).json(filaRc(db.prepare('SELECT * FROM rc_expedientes WHERE id = ?').get(nuevoId)))
 }
 
 app.post('/api/rc/expedientes', exigir('recursos'), (req, res) => guardarRc(req, res, null))

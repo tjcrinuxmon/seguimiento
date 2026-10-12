@@ -73,17 +73,24 @@ function Lista({ def, filas = [], onChange, plazo, idBase }) {
 
 export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar, onGuardado, onEliminado }) {
   const nuevo = !expediente?.id
-  const [e, setE] = useState(() => expediente || { anio: new Date().getFullYear() })
+  const [e, setE] = useState(() => expediente || {})
   const [sucio, setSucio] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState(null)
   const [aviso, setAviso] = useState(null)
 
-  // Expediente nuevo: sugerir el siguiente número del año
+  // Expediente nuevo: mostrar el número que se le asignará (del año de recepción en la DEAJ)
+  const anioPrevisto = /^\d{4}/.test(e.fecha_recepcion_deaj || '') ? Number(e.fecha_recepcion_deaj.slice(0, 4)) : new Date().getFullYear()
+  const [previsto, setPrevisto] = useState(null)
   useEffect(() => {
     if (!nuevo) return
-    getSiguienteRc(e.anio).then(r => setE(x => (x.numero ? x : { ...x, numero: r.numero }))).catch(() => {})
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    let vigente = true
+    getSiguienteRc(anioPrevisto).then(r => { if (vigente) setPrevisto(r) }).catch(() => {})
+    return () => { vigente = false }
+  }, [nuevo, anioPrevisto])
+  const claveMostrada = nuevo
+    ? (previsto ? `INE/DEAJ/ALI/${previsto.numero}/${previsto.anio}` : 'Expediente nuevo')
+    : expedienteClave(e)
 
   // Avisar si se intenta salir con cambios sin guardar
   useEffect(() => {
@@ -102,8 +109,7 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
   const guardar = async () => {
     setGuardando(true); setError(null)
     try {
-      const datos = { ...e, numero: Number(e.numero), anio: Number(e.anio) }
-      const r = nuevo ? await createExpedienteRc(datos) : await updateExpedienteRc(e.id, datos)
+      const r = nuevo ? await createExpedienteRc(e) : await updateExpedienteRc(e.id, e)
       setE(r); setSucio(false); setAviso(`Guardado a las ${new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`)
       onGuardado(r)
     } catch (err) {
@@ -133,7 +139,7 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <button type="button" onClick={cerrar} className="text-xs text-ine-muted hover:underline">← Expedientes</button>
-          <h1 className="text-lg sm:text-xl font-bold text-ine-text mt-1">{expedienteClave(e)}</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-ine-text mt-1">{claveMostrada}</h1>
           <p className="text-sm text-ine-muted mt-0.5">
             {etapa.label}{e.abogado ? ` · ${e.abogado}` : ''}
           </p>
@@ -191,6 +197,17 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
             <h3 className="text-base font-bold text-ine-text">{s.titulo}</h3>
             {s.nota && <p className="text-xs text-ine-muted mt-0.5">{s.nota}</p>}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-4">
+              {i === 0 && (
+                <div>
+                  <span className="ine-label">Expediente</span>
+                  <p className="ine-input" style={{ background: '#F7F5F3', color: '#000', fontWeight: 700 }} aria-readonly="true">
+                    {claveMostrada}
+                  </p>
+                  <p className="mt-1 text-xs text-ine-muted">
+                    {nuevo ? 'Número consecutivo; se asigna al crear el expediente.' : 'Asignado automáticamente; no se puede cambiar.'}
+                  </p>
+                </div>
+              )}
               {s.campos.map(c => (
                 <Campo key={c.k} def={c} valor={e[c.k]} onChange={v => set(c.k, v)} idBase="rc"
                   plazo={c.plazo ? plazoDe(c.plazo) : null}
