@@ -91,6 +91,23 @@ db.exec(`
   )
 `)
 
+// Catálogo de abogados por subdirección. Los expedientes guardan el id, así que cambiar el
+// nombre aquí se refleja en todos. No se borran: se marcan inactivos para conservar el historial.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS abogados (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subdireccion TEXT NOT NULL,
+    nombre TEXT NOT NULL,
+    activo INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`)
+if (!db.prepare("SELECT COUNT(*) AS n FROM abogados WHERE subdireccion = 'recursos'").get().n) {
+  const ins = db.prepare("INSERT INTO abogados (subdireccion, nombre) VALUES ('recursos', ?)")
+  for (const n of ['Silvia Torres Pacheco', 'Noemi Nycole Fidencio Mariano', 'Rosario Ortega Urrutia', 'Adalberto de Jesus Romero Villa']) ins.run(n)
+}
+
 // Días inhábiles (además de sábados y domingos) para contar plazos en días hábiles.
 db.exec(`
   CREATE TABLE IF NOT EXISTS dias_inhabiles (

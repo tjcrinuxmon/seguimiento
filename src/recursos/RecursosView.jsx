@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { getExpedientesRc, getInhabiles } from '../api.js'
+import { getExpedientesRc, getInhabiles, getAbogados } from '../api.js'
 import { ETAPAS, calcularPlazos, proximoPlazo, etapaActual, expedienteClave } from './plazos.js'
 import { EstadoPlazo, fmtFecha } from './ui.jsx'
 import Ficha from './Ficha.jsx'
 import Inhabiles from './Inhabiles.jsx'
+import Abogados from './Abogados.jsx'
 
 const normalizar = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
@@ -12,6 +13,8 @@ const normalizar = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u03
 export default function RecursosView({ user }) {
   const [expedientes, setExpedientes] = useState(null)
   const [diasInhabiles, setDiasInhabiles] = useState([])
+  const [abogados, setAbogados] = useState([])
+  const [verAbogados, setVerAbogados] = useState(false)
   const [error, setError] = useState(null)
   const [abierto, setAbierto] = useState(null)       // expediente en la ficha ({} = nuevo)
   const [verInhabiles, setVerInhabiles] = useState(false)
@@ -22,8 +25,8 @@ export default function RecursosView({ user }) {
   const cargar = useCallback(async () => {
     setError(null)
     try {
-      const [exps, inh] = await Promise.all([getExpedientesRc(), getInhabiles()])
-      setExpedientes(exps); setDiasInhabiles(inh)
+      const [exps, inh, abg] = await Promise.all([getExpedientesRc(), getInhabiles(), getAbogados('recursos')])
+      setExpedientes(exps); setDiasInhabiles(inh); setAbogados(abg)
     } catch (e) {
       setError(e?.response?.data?.error || e.message)
     }
@@ -31,7 +34,6 @@ export default function RecursosView({ user }) {
   useEffect(() => { cargar() }, [cargar])
 
   const inhabiles = useMemo(() => new Set(diasInhabiles.map(d => d.fecha)), [diasInhabiles])
-  const abogados = useMemo(() => [...new Set((expedientes || []).map(x => x.abogado).filter(Boolean))].sort(), [expedientes])
 
   const filas = useMemo(() => (expedientes || []).map(x => {
     const plazos = calcularPlazos(x, inhabiles)
@@ -80,6 +82,9 @@ export default function RecursosView({ user }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-outline" style={{ fontSize: 13 }} onClick={() => setVerAbogados(v => !v)}>
+            Abogados
+          </button>
           <button type="button" className="btn-outline" style={{ fontSize: 13 }} onClick={() => setVerInhabiles(v => !v)}>
             Días inhábiles
           </button>
@@ -87,6 +92,9 @@ export default function RecursosView({ user }) {
         </div>
       </div>
 
+      {verAbogados && (
+        <Abogados subdireccion="recursos" abogados={abogados} puedeEditar={user?.role === 'admin'} onCambio={cargar} onCerrar={() => setVerAbogados(false)} />
+      )}
       {verInhabiles && (
         <Inhabiles dias={diasInhabiles} puedeEditar={user?.role === 'admin'} onCambio={cargar} onCerrar={() => setVerInhabiles(false)} />
       )}

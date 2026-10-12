@@ -6,11 +6,20 @@ import { EstadoPlazo, fmtFecha } from './ui.jsx'
 
 const ANCHO = { sm: 'sm:col-span-1', md: 'sm:col-span-1', lg: 'sm:col-span-2', completo: 'sm:col-span-2 lg:col-span-3' }
 
-function Campo({ def, valor, onChange, plazo, sugerencias, idBase }) {
+function Campo({ def, valor, onChange, plazo, sugerencias, idBase, abogados }) {
   const id = `${idBase}-${def.k}`
   const comun = { id, className: 'ine-input', value: valor ?? '', onChange: e => onChange(e.target.value) }
   let control
   if (def.tipo === 'area') control = <textarea {...comun} rows={2} style={{ resize: 'vertical' }} />
+  else if (def.tipo === 'abogado') control = (
+    // Solo los activos, más el que ya tenga asignado aunque se haya dado de baja
+    <select {...comun} onChange={e => onChange(e.target.value ? Number(e.target.value) : null)}>
+      <option value="">— Sin asignar —</option>
+      {(abogados || []).filter(a => a.activo || a.id === Number(valor)).map(a => (
+        <option key={a.id} value={a.id}>{a.nombre}{a.activo ? '' : ' (inactivo)'}</option>
+      ))}
+    </select>
+  )
   else if (def.tipo === 'opcion') control = (
     <select {...comun}>
       <option value="">— Selecciona —</option>
@@ -104,6 +113,7 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
   const plazos = useMemo(() => calcularPlazos(e, inhabiles), [e, inhabiles])
   const plazoDe = (clave) => plazos.find(p => p.clave === clave)
   const etapa = etapaActual(e)
+  const nombreAbogado = abogados.find(a => a.id === Number(e.abogado_id))?.nombre
   const esInicio = e.determinacion === 'inicio'
 
   const guardar = async () => {
@@ -141,7 +151,7 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
           <button type="button" onClick={cerrar} className="text-xs text-ine-muted hover:underline">← Expedientes</button>
           <h1 className="text-lg sm:text-xl font-bold text-ine-text mt-1">{claveMostrada}</h1>
           <p className="text-sm text-ine-muted mt-0.5">
-            {etapa.label}{e.abogado ? ` · ${e.abogado}` : ''}
+            {etapa.label}{nombreAbogado ? ` · ${nombreAbogado}` : ''}
           </p>
         </div>
         {!nuevo && user?.role === 'admin' && (
@@ -211,7 +221,7 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
               {s.campos.map(c => (
                 <Campo key={c.k} def={c} valor={e[c.k]} onChange={v => set(c.k, v)} idBase="rc"
                   plazo={c.plazo ? plazoDe(c.plazo) : null}
-                  sugerencias={c.sugerencias === 'abogados' ? abogados : null} />
+                  abogados={abogados} />
               ))}
             </div>
             {(s.listas || []).map(l => (

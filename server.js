@@ -208,7 +208,14 @@ app.delete('/api/dal/:section/:id', exigir('litigio'), seccionValida, (req, res)
 })
 
 // ─── Asuntos Laborales → Recursos y Consultas ─────────────────────────────────
-const filaRc = (r) => ({ ...JSON.parse(r.data), id: r.id, numero: r.numero, anio: r.anio, updated_at: r.updated_at })
+// `abogado` (nombre) se calcula desde el catálogo con `abogado_id`, para que un cambio de
+// nombre se vea en todos los expedientes.
+const nombreAbogado = db.prepare('SELECT nombre FROM abogados WHERE id = ?')
+const filaRc = (r) => {
+  const data = JSON.parse(r.data)
+  const abogado = data.abogado_id ? nombreAbogado.get(data.abogado_id)?.nombre || null : null
+  return { ...data, abogado, id: r.id, numero: r.numero, anio: r.anio, updated_at: r.updated_at }
+}
 // Número y año del expediente (INE/DEAJ/ALI/{numero}/{anio}): los asigna el servidor al
 // crearlo y ya no cambian. El año es el de la recepción en la DEAJ (o el actual si aún no
 // se captura); el número, el siguiente consecutivo de ese año.
@@ -237,7 +244,7 @@ app.get('/api/rc/expedientes/:id', exigir('recursos'), (req, res) => {
 })
 
 const guardarRc = (req, res, id) => {
-  const { id: _i, numero: _n, anio: _a, updated_at: _u, ...data } = req.body || {}
+  const { id: _i, numero: _n, anio: _a, updated_at: _u, abogado: _ab, ...data } = req.body || {}
   if (id) {
     // El número y el año no se modifican al editar
     const r = db.prepare('UPDATE rc_expedientes SET data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(JSON.stringify(data), id)
@@ -263,6 +270,37 @@ app.delete('/api/rc/expedientes/:id', exigir('recursos'), (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede eliminar expedientes' })
   db.prepare('DELETE FROM rc_expedientes WHERE id = ?').run(req.params.id)
   res.json({ ok: true })
+})
+
+// ─── Catálogo de abogados por subdirección ────────────────────────────────────
+// Lo consultan quienes ven la subdirección; solo un administrador lo modifica.
+const SUBDIRECCIONES_ABOGADOS = { recursos: 'recursos' }   // subdirección → permiso que la ve
+
+app.get('/api/abogados', (req, res) => {
+  const sub = req.query.subdireccion
+  if (!SUBDIRECCIONES_ABOGADOS[sub]) return res.status(400).json({ error: 'Subdirección inválida' })
+  if (!permisos(req.user)[SUBDIRECCIONES_ABOGADOS[sub]]) return res.status(403).json({ error: 'Sin acceso a este rubro' })
+  res.json(db.prepare('SELECT id, nombre, activo FROM abogados WHERE subdireccion = ? ORDER BY activo DESC, nombre').all(sub))
+})
+
+app.post('/api/abogados', (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede modificar el catálogo de abogados' })
+  const { subdireccion, nombre } = req.body || {}
+  if (!SUBDIRECCIONES_ABOGADOS[subdireccion]) return res.status(400).json({ error: 'Subdirección inválida' })
+  if (!nombre?.trim()) return res.status(400).json({ error: 'El nombre es requerido' })
+  const r = db.prepare('INSERT INTO abogados (subdireccion, nombre) VALUES (?, ?)').run(subdireccion, nombre.trim())
+  res.status(201).json(db.prepare('SELECT id, nombre, activo FROM abogados WHERE id = ?').get(r.lastInsertRowid))
+})
+
+app.put('/api/abogados/:id', (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede modificar el catálogo de abogados' })
+  const actual = db.prepare('SELECT * FROM abogados WHERE id = ?').get(req.params.id)
+  if (!actual) return res.status(404).json({ error: 'Abogado no encontrado' })
+  const nombre = req.body?.nombre !== undefined ? String(req.body.nombre).trim() : actual.nombre
+  if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' })
+  const activo = req.body?.activo !== undefined ? (req.body.activo ? 1 : 0) : actual.activo
+  db.prepare('UPDATE abogados SET nombre = ?, activo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nombre, activo, actual.id)
+  res.json(db.prepare('SELECT id, nombre, activo FROM abogados WHERE id = ?').get(actual.id))
 })
 
 // ─── Días inhábiles (para plazos en días hábiles) ─────────────────────────────

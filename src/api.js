@@ -56,3 +56,8 @@ export const deleteExpedienteRc = (id)     => api.delete(`/rc/expedientes/${id}`
 export const getInhabiles    = ()               => api.get('/inhabiles').then(r => r.data)
 export const addInhabil      = (fecha, motivo)  => api.post('/inhabiles', { fecha, motivo }).then(r => r.data)
 export const removeInhabil   = (fecha)          => api.delete(`/inhabiles/${fecha}`).then(r => r.data)
+
+// Catálogo de abogados por subdirección
+export const getAbogados    = (subdireccion)   => api.get('/abogados', { params: { subdireccion } }).then(r => r.data)
+export const createAbogado  = (subdireccion, nombre) => api.post('/abogados', { subdireccion, nombre }).then(r => r.data)
+export const updateAbogado  = (id, data)       => api.put(`/abogados/${id}`, data).then(r => r.data)

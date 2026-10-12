@@ -25,7 +25,7 @@ export const SECCIONES = [
   {
     etapa: 'recepcion', titulo: 'Recepción de la denuncia',
     campos: [
-      { k: 'abogado', label: 'Abogado', tipo: 'texto', sugerencias: 'abogados' },
+      { k: 'abogado_id', label: 'Abogado', tipo: 'abogado' },
       { k: 'fecha_recepcion_deaj', label: 'Recepción en la DEAJ', tipo: 'fecha', ayuda: 'Desde aquí corre el término de 6 meses.' },
       { k: 'fecha_recepcion_dal', label: 'Recepción en la DAL', tipo: 'fecha' },
       { k: 'protocolo', label: 'Protocolo aplicable', tipo: 'texto', ayuda: 'Por ejemplo, con perspectiva de género.' },
