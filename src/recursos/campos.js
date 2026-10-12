@@ -19,6 +19,7 @@ export const DETERMINACIONES = [
   { valor: 'inicio',    label: 'Inicio del procedimiento' },
   { valor: 'no_inicio', label: 'No inicio' },
   { valor: 'extincion', label: 'Extinción' },
+  { valor: 'sobreseimiento', label: 'Sobreseimiento' },
 ]
 
 export const SECCIONES = [

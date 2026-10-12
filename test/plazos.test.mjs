@@ -32,3 +32,6 @@ assert.equal(P.expedienteClave(e), 'INE/DEAJ/ALI/12/2026')
 assert.equal(P.calcularPlazos({ ...e, determinacion: 'no_inicio' }, vacio).some(x => x.clave === 'acuerdo_admision'), false)
 assert.equal(P.etapaActual({ ...e, determinacion: 'no_inicio' }).concluido, true)
 console.log('✓ plazos de Recursos y Consultas')
+// Sobreseimiento: concluye como no inicio / extinción y no genera plazos de pruebas
+assert.equal(P.etapaActual({ ...e, determinacion: 'sobreseimiento' }).label, 'Concluido (sobreseimiento)')
+assert.equal(P.calcularPlazos({ ...e, determinacion: 'sobreseimiento' }, vacio).some(x => x.clave === 'resolucion'), false)

@@ -164,7 +164,8 @@ export function etapaActual(e) {
   let actual = ETAPAS[0]
   for (const et of ETAPAS) if (tiene[et.clave]) actual = et
   if (e.determinacion && e.determinacion !== 'inicio' && e.fecha_notificacion_determinacion) {
-    return { ...actual, label: e.determinacion === 'extincion' ? 'Concluido (extinción)' : 'Concluido (no inicio)', concluido: true }
+    const motivo = { extincion: 'extinción', sobreseimiento: 'sobreseimiento', no_inicio: 'no inicio' }[e.determinacion] || e.determinacion
+    return { ...actual, label: `Concluido (${motivo})`, concluido: true }
   }
   if (e.fecha_notificacion_resolucion || e.notificaciones_resolucion?.length) {
     return { ...actual, label: 'Resuelto y notificado', concluido: true }
