@@ -30,7 +30,7 @@ export const DIRECCIONES = [
     rubros: [
       { tipo: 'dashboard', vista: 'dal-dashboard', label: 'Dashboard', icono: 'dashboard', permiso: 'litigio',
         descripcion: 'Resumen y gráficas de la dirección.',
-        cifra: (r) => r.litigio && { num: fmt(r.litigio.etapas), label: 'etapas' } },
+        cifra: (r) => r.litigio && { num: fmt(r.litigio.registros + (r.recursos?.expedientes || 0)), label: 'registros en total' } },
       { tipo: 'subdireccion', tono: 'beige', vista: 'litigio', label: 'Subdirección de Litigio', icono: 'balanza', permiso: 'litigio',
         descripcion: 'Actores, emplazamientos, sentencias, amparos y demás etapas del litigio.',
         cifra: (r) => r.litigio && { num: fmt(r.litigio.registros), label: 'registros' } },

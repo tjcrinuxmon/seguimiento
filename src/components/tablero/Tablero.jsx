@@ -78,6 +78,20 @@ export function Cifras({ items }) {
   )
 }
 
+// Separador de subdirección dentro del dashboard de una dirección, con su tono (rubros.js → TONOS).
+export function Subseccion({ titulo, nota, tono, icono }) {
+  return (
+    <div className="mt-3 rounded-lg px-4 py-3 flex items-center gap-3"
+      style={{ background: `linear-gradient(90deg, ${tono.fondo} 0%, #FFFFFF 85%)`, borderLeft: `4px solid ${tono.acento}` }}>
+      {icono}
+      <div className="min-w-0">
+        <h2 className="text-base font-bold text-ine-text">{titulo}</h2>
+        {nota && <p className="text-xs text-ine-muted mt-0.5">{nota}</p>}
+      </div>
+    </div>
+  )
+}
+
 export function Panel({ titulo, nota, children, className = '' }) {
   return (
     <section className={`ine-card p-4 sm:p-5 ${className}`}>
