@@ -11,7 +11,7 @@ vuelve a necesitar.
 | Dirección | Rubro | Estado | Quién lo ve |
 |---|---|---|---|
 | Asuntos Laborales | Subdirección de Litigio (+ dashboard) | En uso | Administradores, Dirección Ejecutiva y Asuntos Laborales |
-| Asuntos Laborales | Subdirección de Consulta | Por definir | — |
+| Asuntos Laborales | Subdirección de Recursos y Consultas | En diseño | — |
 | Contratos y Convenios | Convenios (+ reporte) | En uso | Administradores y Contratos y Convenios |
 | Contratos y Convenios | Contratos | Por definir | — |
 

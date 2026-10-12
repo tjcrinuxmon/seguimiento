@@ -33,7 +33,7 @@ export const DIRECCIONES = [
       { tipo: 'subdireccion', tono: 'beige', vista: 'litigio', label: 'Subdirección de Litigio', icono: 'balanza', permiso: 'litigio',
         descripcion: 'Actores, emplazamientos, sentencias, amparos y demás etapas del litigio.',
         cifra: (r) => r.litigio && { num: fmt(r.litigio.registros), label: 'registros' } },
-      { tipo: 'subdireccion', tono: 'gris', vista: 'consulta', label: 'Subdirección de Consulta', icono: 'consulta', permiso: 'litigio', enConstruccion: true,
+      { tipo: 'subdireccion', tono: 'gris', vista: 'consulta', label: 'Subdirección de Recursos y Consultas', icono: 'consulta', permiso: 'litigio', enConstruccion: true,
         descripcion: 'Se está definiendo qué se reportará.' },
     ],
   },
