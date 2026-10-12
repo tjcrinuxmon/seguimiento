@@ -88,15 +88,11 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
   const [error, setError] = useState(null)
   const [aviso, setAviso] = useState(null)
 
-  // Expediente nuevo: mostrar el número que se le asignará (del año de recepción en la DEAJ)
-  const anioPrevisto = /^\d{4}/.test(e.fecha_recepcion_deaj || '') ? Number(e.fecha_recepcion_deaj.slice(0, 4)) : new Date().getFullYear()
+  // Expediente nuevo: mostrar el número que se le asignará (año activo y consecutivo)
   const [previsto, setPrevisto] = useState(null)
   useEffect(() => {
-    if (!nuevo) return
-    let vigente = true
-    getSiguienteRc(anioPrevisto).then(r => { if (vigente) setPrevisto(r) }).catch(() => {})
-    return () => { vigente = false }
-  }, [nuevo, anioPrevisto])
+    if (nuevo) getSiguienteRc().then(setPrevisto).catch(() => {})
+  }, [nuevo])
   const claveMostrada = nuevo
     ? (previsto ? `INE/DEAJ/ALI/${previsto.numero}/${previsto.anio}` : 'Expediente nuevo')
     : expedienteClave(e)
@@ -214,7 +210,7 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
                     {claveMostrada}
                   </p>
                   <p className="mt-1 text-xs text-ine-muted">
-                    {nuevo ? 'Número consecutivo; se asigna al crear el expediente.' : 'Asignado automáticamente; no se puede cambiar.'}
+                    {nuevo ? 'Consecutivo del año activo; se asigna al crear el expediente.' : 'Asignado automáticamente; no se puede cambiar.'}
                   </p>
                 </div>
               )}

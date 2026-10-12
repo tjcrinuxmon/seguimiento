@@ -91,6 +91,26 @@ db.exec(`
   )
 `)
 
+// Consecutivo configurable de expedientes por año: el próximo número que fijó un
+// administrador (p. ej. para continuar una numeración que ya llevaban en papel).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS rc_consecutivos (
+    anio INTEGER PRIMARY KEY,
+    siguiente INTEGER NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`)
+
+// Configuración de Recursos y Consultas (clave → valor). Hoy: anio_activo, el año con que
+// se numeran los expedientes nuevos (lo fija un administrador).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS rc_config (
+    clave TEXT PRIMARY KEY,
+    valor TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`)
+
 // Catálogo de abogados por subdirección. Los expedientes guardan el id, así que cambiar el
 // nombre aquí se refleja en todos. No se borran: se marcan inactivos para conservar el historial.
 db.exec(`

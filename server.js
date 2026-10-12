@@ -217,24 +217,55 @@ const filaRc = (r) => {
   return { ...data, abogado, id: r.id, numero: r.numero, anio: r.anio, updated_at: r.updated_at }
 }
 // Número y año del expediente (INE/DEAJ/ALI/{numero}/{anio}): los asigna el servidor al
-// crearlo y ya no cambian. El año es el de la recepción en la DEAJ (o el actual si aún no
-// se captura); el número, el siguiente consecutivo de ese año.
-const anioDe = (data) => {
-  const a = Number(String(data?.fecha_recepcion_deaj || '').slice(0, 4))
+// crearlo y ya no cambian. El año es el año activo que fijó un administrador (o el actual
+// si no hay); el número, el siguiente consecutivo de ese año: el mayor entre el que fijó
+// un administrador (rc_consecutivos) y el último usado + 1.
+const anioActivo = () => {
+  const a = Number(db.prepare("SELECT valor FROM rc_config WHERE clave = 'anio_activo'").get()?.valor)
   return a >= 2000 && a <= 2100 ? a : new Date().getFullYear()
 }
-const siguienteNumero = (anio) =>
+const minimoNumero = (anio) =>
   db.prepare('SELECT COALESCE(MAX(numero), 0) + 1 AS numero FROM rc_expedientes WHERE anio = ?').get(anio).numero
+const siguienteNumero = (anio) => {
+  const fijado = db.prepare('SELECT siguiente FROM rc_consecutivos WHERE anio = ?').get(anio)?.siguiente || 0
+  return Math.max(fijado, minimoNumero(anio))
+}
 
 app.get('/api/rc/expedientes', exigir('recursos'), (req, res) => {
   const rows = db.prepare('SELECT * FROM rc_expedientes ORDER BY anio DESC, numero DESC').all()
   res.json(rows.map(filaRc))
 })
 
-// Número que tendría un expediente nuevo de ese año (solo para mostrarlo antes de crearlo)
+// Número que tendría un expediente nuevo (solo para mostrarlo antes de crearlo)
 app.get('/api/rc/siguiente', exigir('recursos'), (req, res) => {
-  const anio = Number(req.query.anio) || new Date().getFullYear()
+  const anio = anioActivo()
   res.json({ anio, numero: siguienteNumero(anio) })
+})
+
+// Numeración: año activo y próximo número. Cualquiera con acceso la consulta; solo un
+// administrador la cambia. `minimo` es el último número usado ese año + 1.
+app.get('/api/rc/consecutivo', exigir('recursos'), (req, res) => {
+  const anio = Number(req.query.anio) || anioActivo()
+  res.json({ anio, anioActivo: anioActivo(), siguiente: siguienteNumero(anio), minimo: minimoNumero(anio) })
+})
+
+app.put('/api/rc/consecutivo', exigir('recursos'), (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede configurar el consecutivo' })
+  const anio = Number(req.body?.anio)
+  const siguiente = Number(req.body?.siguiente)
+  if (!Number.isInteger(anio) || anio < 2000 || anio > 2100) return res.status(400).json({ error: 'Año inválido' })
+  if (!Number.isInteger(siguiente) || siguiente < 1) return res.status(400).json({ error: 'El número debe ser un entero mayor que 0' })
+  const minimo = minimoNumero(anio)
+  if (siguiente < minimo) {
+    return res.status(400).json({ error: `En ${anio} ya se usó hasta el ${minimo - 1}; el próximo debe ser ${minimo} o mayor.` })
+  }
+  db.transaction(() => {
+    db.prepare(`INSERT INTO rc_config (clave, valor) VALUES ('anio_activo', ?)
+      ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor, updated_at = CURRENT_TIMESTAMP`).run(String(anio))
+    db.prepare(`INSERT INTO rc_consecutivos (anio, siguiente) VALUES (?, ?)
+      ON CONFLICT(anio) DO UPDATE SET siguiente = excluded.siguiente, updated_at = CURRENT_TIMESTAMP`).run(anio, siguiente)
+  })()
+  res.json({ anio, anioActivo: anioActivo(), siguiente: siguienteNumero(anio), minimo })
 })
 
 app.get('/api/rc/expedientes/:id', exigir('recursos'), (req, res) => {
@@ -254,7 +285,7 @@ const guardarRc = (req, res, id) => {
   // Asignar número y crear en una sola transacción, para que dos capturas simultáneas
   // no obtengan el mismo número.
   const crear = db.transaction(() => {
-    const anio = anioDe(data)
+    const anio = anioActivo()
     const numero = siguienteNumero(anio)
     return db.prepare('INSERT INTO rc_expedientes (numero, anio, data, created_by_id) VALUES (?,?,?,?)')
       .run(numero, anio, JSON.stringify(data), req.user.id).lastInsertRowid

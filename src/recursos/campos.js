@@ -45,6 +45,7 @@ export const SECCIONES = [
     campos: [
       { k: 'denunciado_nombre', label: 'Nombre', tipo: 'texto' },
       { k: 'denunciado_cargo', label: 'Cargo', tipo: 'texto' },
+      { k: 'denunciado_adscripcion', label: 'Área de adscripción', tipo: 'texto' },
       { k: 'conducta', label: 'Conducta del probable infractor', tipo: 'area', ancho: 'completo' },
     ],
   },

@@ -5,6 +5,7 @@ import { EstadoPlazo, fmtFecha } from './ui.jsx'
 import Ficha from './Ficha.jsx'
 import Inhabiles from './Inhabiles.jsx'
 import Abogados from './Abogados.jsx'
+import Numeracion from './Numeracion.jsx'
 
 const normalizar = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
@@ -15,6 +16,7 @@ export default function RecursosView({ user }) {
   const [diasInhabiles, setDiasInhabiles] = useState([])
   const [abogados, setAbogados] = useState([])
   const [verAbogados, setVerAbogados] = useState(false)
+  const [verNumeracion, setVerNumeracion] = useState(false)
   const [error, setError] = useState(null)
   const [abierto, setAbierto] = useState(null)       // expediente en la ficha ({} = nuevo)
   const [verInhabiles, setVerInhabiles] = useState(false)
@@ -82,6 +84,9 @@ export default function RecursosView({ user }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-outline" style={{ fontSize: 13 }} onClick={() => setVerNumeracion(v => !v)}>
+            Numeración
+          </button>
           <button type="button" className="btn-outline" style={{ fontSize: 13 }} onClick={() => setVerAbogados(v => !v)}>
             Abogados
           </button>
@@ -92,6 +97,9 @@ export default function RecursosView({ user }) {
         </div>
       </div>
 
+      {verNumeracion && (
+        <Numeracion puedeEditar={user?.role === 'admin'} onCerrar={() => setVerNumeracion(false)} />
+      )}
       {verAbogados && (
         <Abogados subdireccion="recursos" abogados={abogados} puedeEditar={user?.role === 'admin'} onCambio={cargar} onCerrar={() => setVerAbogados(false)} />
       )}
