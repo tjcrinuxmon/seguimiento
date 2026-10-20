@@ -324,7 +324,8 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
   const handleSearch = (val) => { setSearch(val); setPage(0) }
 
   const exportExcel = () => {
-    const cols = schemas.filter(s => !s.formOnly)
+    // El Excel lleva todos los campos, también los que solo salen en el formulario
+    const cols = schemas.filter(s => !s.tableOnly)
     const data = filtered.map(row => {
       const obj = {}
       cols.forEach(c => { obj[c.label] = row[c.key] ?? '' })

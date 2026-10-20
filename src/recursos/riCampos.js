@@ -17,12 +17,12 @@ export const PARTES_RI = ['', 'Infractor', 'Denunciante', 'Denunciante / Infract
 
 export const SECCIONES_RI = [
   { key: 'juridico', label: 'Jurídico-laboral', titulo: 'Consultas jurídico-laborales', campos: [
-    { key: 'numero', label: 'Número de consulta' },
+    { key: 'numero', label: 'Número de consulta', formOnly: true },
     { key: 'idSai', label: 'ID SAI' },
     { key: 'asunto', label: 'Asunto', type: 'textarea', wide: true },
-    { key: 'medio', label: 'Medio por el que llegó' },
+    { key: 'medio', label: 'Medio por el que llegó', formOnly: true },
     abogado(),
-    { key: 'oficioAtencion', label: 'Oficio de atención' },
+    { key: 'oficioAtencion', label: 'Oficio de atención', formOnly: true },
     { key: 'fechaAtencion', label: 'Fecha de atención', type: 'date' },
     estatus,
     { key: 'observaciones', label: 'Observaciones', type: 'textarea', wide: true, formOnly: true },
