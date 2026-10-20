@@ -9,6 +9,7 @@ import RecursosView from './recursos/RecursosView.jsx'
 import ConveniosView from './components/ConveniosView.jsx'
 import DashboardDAL from './components/tablero/DashboardDAL.jsx'
 import DashboardDCyC from './components/tablero/DashboardDCyC.jsx'
+import { DashboardLitigio, DashboardRecursos } from './components/tablero/DashboardSubdireccion.jsx'
 import LoginPage from './components/LoginPage.jsx'
 import { ssoLogin } from './api.js'
 import { getToken, getUser, setAuth, clearAuth } from './auth.js'
@@ -80,9 +81,14 @@ export default function App() {
   if (!token || !user) return <LoginPage />
 
   const p = permisos(user)
-  const encontrado = buscarRubro(vista)
+  // La vista puede traer una subvista: "litigio/dashboard" es el dashboard de esa subdirección.
+  const [base, sub] = vista.split('/')
+  const encontrado = buscarRubro(base)
   // Una vista que no existe o a la que el usuario no tiene permiso cae al inicio.
-  const vistaFinal = encontrado && p[encontrado.rubro.permiso] ? vista : 'inicio'
+  const vistaFinal = encontrado && p[encontrado.rubro.permiso] ? base : 'inicio'
+  const enDashboard = vistaFinal !== 'inicio' && sub === 'dashboard' && !!encontrado.rubro.dashboard
+  const verDashboard = () => navigate(`${vistaFinal}/dashboard`)
+  const volver = () => navigate(vistaFinal)
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-ine-bg">
@@ -94,12 +100,17 @@ export default function App() {
         ) : (
           // Litigio ocupa el alto disponible (tiene su propio scroll);
           // las demás vistas crecen hacia abajo y hace scroll el <main>.
-          <div className={vistaFinal === 'litigio' ? 'flex flex-col h-full' : ''}>
-            <Contexto direccion={encontrado.direccion} rubro={encontrado.rubro} onNavigate={navigate} />
+          <div className={vistaFinal === 'litigio' && !enDashboard ? 'flex flex-col h-full' : ''}>
+            <Contexto direccion={encontrado.direccion} rubro={encontrado.rubro} onNavigate={navigate}
+              seccion={enDashboard ? 'Dashboard' : null} />
             <div className="flex-1 min-h-0">
-              {vistaFinal === 'dal-dashboard' && <DashboardDAL />}
-              {vistaFinal === 'litigio' && <DALView user={user} />}
-              {vistaFinal === 'recursos' && <RecursosView user={user} />}
+              {vistaFinal === 'dal-dashboard' && <DashboardDAL onNavigate={navigate} />}
+              {vistaFinal === 'litigio' && (enDashboard
+                ? <DashboardLitigio onVolver={volver} />
+                : <DALView user={user} onDashboard={verDashboard} />)}
+              {vistaFinal === 'recursos' && (enDashboard
+                ? <DashboardRecursos onVolver={volver} />
+                : <RecursosView user={user} onDashboard={verDashboard} />)}
               {vistaFinal === 'dcyc-dashboard' && <DashboardDCyC />}
               {vistaFinal === 'convenios' && <ConveniosView user={user} />}
               {encontrado.rubro.enConstruccion && (

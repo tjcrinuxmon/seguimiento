@@ -79,15 +79,53 @@ export function Cifras({ items }) {
 }
 
 // Separador de subdirección dentro del dashboard de una dirección, con su tono (rubros.js → TONOS).
-export function Subseccion({ titulo, nota, tono, icono }) {
+// `onVer` agrega el enlace al dashboard completo de la subdirección.
+export function Subseccion({ titulo, nota, tono, icono, onVer }) {
   return (
-    <div className="mt-3 rounded-lg px-4 py-3 flex items-center gap-3"
+    <div className="mt-3 rounded-lg px-4 py-3 flex flex-wrap items-center gap-3"
       style={{ background: `linear-gradient(90deg, ${tono.fondo} 0%, #FFFFFF 85%)`, borderLeft: `4px solid ${tono.acento}` }}>
       {icono}
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <h2 className="text-base font-bold text-ine-text">{titulo}</h2>
         {nota && <p className="text-xs text-ine-muted mt-0.5">{nota}</p>}
       </div>
+      {onVer && (
+        <button type="button" onClick={onVer} className="btn-outline flex-shrink-0" style={{ fontSize: 13 }}>
+          Ver dashboard completo →
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Franja de alertas arriba de la captura de una subdirección: cuántos plazos están vencidos
+// o por vencer y el botón al dashboard de la subdirección. `vencidos === null` mientras carga.
+export function FranjaAlertas({ vencidos, porVencer, umbral, onAbrir }) {
+  const e = vencidos > 0 ? ESTADO.vencido : porVencer > 0 ? ESTADO.porVencer : ESTADO.neutro
+  return (
+    <div className="rounded-lg px-3 sm:px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-2 flex-shrink-0" role="status"
+      style={{ background: e.fondo, border: `1px solid ${e.borde}`, borderLeft: `4px solid ${e.texto}` }}>
+      <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm flex-1 min-w-0">
+        {vencidos === null ? (
+          <span className="text-ine-muted">Revisando plazos…</span>
+        ) : !vencidos && !porVencer ? (
+          <span style={{ color: TINTA.media }}>✓ Sin plazos vencidos ni por vencer en los próximos {umbral} días</span>
+        ) : <>
+          {vencidos > 0 && (
+            <span style={{ color: ESTADO.vencido.texto }}>
+              <span aria-hidden="true">{ESTADO.vencido.icono} </span><strong>{fmt(vencidos)}</strong> {vencidos === 1 ? 'plazo vencido' : 'plazos vencidos'}
+            </span>
+          )}
+          {porVencer > 0 && (
+            <span style={{ color: ESTADO.porVencer.texto }}>
+              <span aria-hidden="true">{ESTADO.porVencer.icono} </span><strong>{fmt(porVencer)}</strong> por vencer en {umbral} días
+            </span>
+          )}
+        </>}
+      </span>
+      <button type="button" onClick={onAbrir} className="btn-outline flex-shrink-0" style={{ fontSize: 13, background: '#fff' }}>
+        Ver dashboard →
+      </button>
     </div>
   )
 }

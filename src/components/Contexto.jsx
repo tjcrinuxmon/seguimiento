@@ -4,7 +4,8 @@ import { TONOS } from '../rubros.js'
 
 // Barra de ubicación: Inicio › Dirección › Rubro, con el tono e ícono del rubro
 // (los mismos que en el inicio), para saber siempre en qué subdirección se está.
-export default function Contexto({ direccion, rubro, onNavigate }) {
+// `seccion` (p. ej. "Dashboard") agrega un nivel más: Inicio › Dirección › Subdirección › Dashboard.
+export default function Contexto({ direccion, rubro, onNavigate, seccion }) {
   const t = rubro.tipo === 'subdireccion'
     ? (TONOS[rubro.tono] || TONOS.gris)
     : { acento: '#454247', fondo: '#EDEAE6', icono: '#454247', trazo: '#FFFFFF' }
@@ -25,9 +26,14 @@ export default function Contexto({ direccion, rubro, onNavigate }) {
           <li><button onClick={() => onNavigate('inicio')} className="hover:underline">Inicio</button></li>
           <li aria-hidden="true">›</li>
           <li className="truncate">Dirección de {direccion.label}</li>
+          {seccion && <>
+            <li aria-hidden="true">›</li>
+            <li className="truncate"><button onClick={() => onNavigate(rubro.vista)} className="hover:underline">{rubro.label}</button></li>
+          </>}
         </ol>
         <p className="text-sm font-bold text-ine-text leading-tight mt-0.5 truncate" aria-current="page">
-          {rubro.tipo === 'subdireccion' ? rubro.label : `${rubro.label} · ${direccion.label}`}
+          {seccion ? `${seccion} · ${rubro.label}`
+            : rubro.tipo === 'subdireccion' ? rubro.label : `${rubro.label} · ${direccion.label}`}
         </p>
       </div>
       <span className="hidden sm:inline-block px-2 py-1 rounded text-xs font-black flex-shrink-0"

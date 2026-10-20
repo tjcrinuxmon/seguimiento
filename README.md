@@ -15,6 +15,11 @@ vuelve a necesitar.
 | Contratos y Convenios | Convenios (+ reporte) | En uso | Administradores y Contratos y Convenios |
 | Contratos y Convenios | Contratos | Por definir | — |
 
+Asuntos Laborales tiene dos niveles de dashboard: el de la dirección (alertas sumadas y,
+de cada subdirección, cifras y plazos) y el de cada subdirección (`#/litigio/dashboard`,
+`#/recursos/dashboard`), que se abre desde la franja de alertas arriba de la captura.
+Todos usan los mismos cálculos (`src/components/tablero/dal.js`).
+
 Los rubros y sus permisos se definen en `src/rubros.js` (menú e inicio) y en
 `permisos()` de `server.js` (API); deben coincidir.
 

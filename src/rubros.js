@@ -3,7 +3,8 @@
 // Para sumar una dirección o un rubro nuevo se agrega aquí y se le da su vista en
 // App.jsx; el menú y el inicio se arman solos.
 //
-// `permiso` debe coincidir con permisos() de server.js.
+// `permiso` debe coincidir con permisos() de server.js. `dashboard: true` en una subdirección
+// le da su propio dashboard en #/<vista>/dashboard (se abre desde la franja de alertas).
 // Colores: solo la paleta INE 2026 (gris oxford #454247, beige #C5A989, gris cálido
 // #DDD4CE, gris medio #828A91, gris claro #C5C9CC y sus matices).
 
@@ -31,10 +32,10 @@ export const DIRECCIONES = [
       { tipo: 'dashboard', vista: 'dal-dashboard', label: 'Dashboard', icono: 'dashboard', permiso: 'litigio',
         descripcion: 'Resumen y gráficas de la dirección.',
         cifra: (r) => r.litigio && { num: fmt(r.litigio.registros + (r.recursos?.expedientes || 0)), label: 'registros en total' } },
-      { tipo: 'subdireccion', tono: 'beige', vista: 'litigio', label: 'Subdirección de Litigio', icono: 'balanza', permiso: 'litigio',
+      { tipo: 'subdireccion', tono: 'beige', vista: 'litigio', label: 'Subdirección de Litigio', icono: 'balanza', permiso: 'litigio', dashboard: true,
         descripcion: 'Actores, emplazamientos, sentencias, amparos y demás etapas del litigio.',
         cifra: (r) => r.litigio && { num: fmt(r.litigio.registros), label: 'registros' } },
-      { tipo: 'subdireccion', tono: 'gris', vista: 'recursos', label: 'Subdirección de Recursos y Consultas', icono: 'consulta', permiso: 'recursos',
+      { tipo: 'subdireccion', tono: 'gris', vista: 'recursos', label: 'Subdirección de Recursos y Consultas', icono: 'consulta', permiso: 'recursos', dashboard: true,
         descripcion: 'Denuncias: etapas del procedimiento, oficios y plazos.',
         cifra: (r) => r.recursos && { num: fmt(r.recursos.expedientes), label: 'expedientes' } },
     ],

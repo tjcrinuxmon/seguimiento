@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { getDalSection, createDalRecord, updateDalRecord, deleteDalRecord } from '../api.js'
+import { FranjaAlertas } from './tablero/Tablero.jsx'
+import { UMBRAL_DIAS, alertasLitigio } from './tablero/dal.js'
 
 /* ─── CONSTANTS ─────────────────────────────────────────────────────────── */
 const BASE_ABOGADOS = ['','JC','Luis Carlos','Eduardo','Edgar','Jessica','Guadalupe',
@@ -639,8 +641,9 @@ const SECTION_TITLES = {
 }
 
 /* ─── MAIN VIEW ─────────────────────────────────────────────────────────── */
-export default function DALView({ user }) {
-  // El dashboard es de la dirección (tablero/DashboardDAL.jsx); aquí se abre en la primera sección.
+export default function DALView({ user, onDashboard }) {
+  // Se abre en la primera sección; el dashboard de la subdirección se abre desde la franja
+  // de alertas (tablero/DashboardSubdireccion.jsx).
   const [active, setActive] = useState('actores')
   const [store, setStore] = useState(() =>
     Object.fromEntries(SECTIONS.map(s => [s, []]))
@@ -684,10 +687,18 @@ export default function DALView({ user }) {
     setStore(s => ({ ...s, [section]: records }))
   }, [])
 
+  // Se recalcula con cada captura, así que la franja refleja lo recién registrado
+  const alertas = useMemo(() => loading ? null : alertasLitigio(store), [store, loading, loadError])
+
   return (
     <AbogadosCtx.Provider value={{ abogados, addAbogado }}>
+    <div style={{ display:'flex',flexDirection:'column',gap:12,height:'100%' }}>
+    {!loadError && (
+      <FranjaAlertas vencidos={alertas ? alertas.vencidos : null} porVencer={alertas?.porVencer}
+        umbral={UMBRAL_DIAS} onAbrir={onDashboard} />
+    )}
     <div style={{ display:'flex',flexDirection:'column',overflow:'hidden',
-      height:'100%',minHeight:420,borderRadius:10,border:'1px solid #E3DFDA',
+      flex:1,minHeight:420,borderRadius:10,border:'1px solid #E3DFDA',
       boxShadow:'0 2px 8px rgba(0,0,0,.07)' }}>
 
       {/* Top tab bar */}
@@ -744,6 +755,7 @@ export default function DALView({ user }) {
           />
         )}
       </div>
+    </div>
     </div>
     </AbogadosCtx.Provider>
   )

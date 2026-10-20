@@ -8,6 +8,8 @@ import Ficha from './Ficha.jsx'
 import Inhabiles from './Inhabiles.jsx'
 import Abogados from './Abogados.jsx'
 import Numeracion from './Numeracion.jsx'
+import { FranjaAlertas } from '../components/tablero/Tablero.jsx'
+import { UMBRAL_DIAS, calcularRecursos } from '../components/tablero/dal.js'
 
 const DET = Object.fromEntries(DETERMINACIONES.map(d => [d.valor, d.label]))
 const VISTA_KEY = 'seguimiento_rc_vista'
@@ -17,7 +19,7 @@ const normalizar = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u03
 
 // Subdirección de Recursos y Consultas: lista de expedientes con su etapa y su próximo
 // plazo; al abrir uno se muestra su ficha.
-export default function RecursosView({ user }) {
+export default function RecursosView({ user, onDashboard }) {
   const [expedientes, setExpedientes] = useState(null)
   const [diasInhabiles, setDiasInhabiles] = useState([])
   const [abogados, setAbogados] = useState([])
@@ -60,10 +62,8 @@ export default function RecursosView({ user }) {
       .sort((a, b) => (a.proximo?.dias ?? 1e9) - (b.proximo?.dias ?? 1e9))
   }, [filas, q, filtro, etapaFiltro])
 
-  const totales = useMemo(() => ({
-    vencidos: filas.filter(x => x.vencidos > 0).length,
-    porVencer: filas.filter(x => x.proximo?.estado === 'por_vencer').length,
-  }), [filas])
+  // Mismo conteo que el dashboard: plazos de la DEAJ vencidos y por vencer
+  const alertas = useMemo(() => expedientes && calcularRecursos(expedientes, inhabiles), [expedientes, inhabiles])
 
   if (abierto) {
     return (
@@ -82,13 +82,16 @@ export default function RecursosView({ user }) {
 
   return (
     <div className="fade-in max-w-6xl mx-auto flex flex-col gap-4">
+      {!error && (
+        <FranjaAlertas vencidos={alertas ? alertas.vencidos : null} porVencer={alertas?.porVencer}
+          umbral={UMBRAL_DIAS} onAbrir={onDashboard} />
+      )}
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-ine-text">Expedientes</h1>
           <p className="text-sm text-ine-muted mt-0.5">
             {expedientes ? `${filas.length} expedientes` : 'Cargando…'}
-            {totales.vencidos > 0 && <> · <strong style={{ color: '#991B1B' }}>{totales.vencidos} con plazo vencido</strong></>}
-            {totales.porVencer > 0 && <> · <strong style={{ color: '#92400E' }}>{totales.porVencer} por vencer</strong></>}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
