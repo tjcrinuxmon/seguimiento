@@ -35,3 +35,5 @@ console.log('✓ plazos de Recursos y Consultas')
 // Sobreseimiento: concluye como no inicio / extinción y no genera plazos de pruebas
 assert.equal(P.etapaActual({ ...e, determinacion: 'sobreseimiento' }).label, 'Concluido (sobreseimiento)')
 assert.equal(P.calcularPlazos({ ...e, determinacion: 'sobreseimiento' }, vacio).some(x => x.clave === 'resolucion'), false)
+// Archivo: concluye al notificar el acuerdo, como no inicio
+assert.equal(P.etapaActual({ determinacion: 'archivo', fecha_notificacion_determinacion: '2026-10-01' }).label, 'Concluido (archivo)')
