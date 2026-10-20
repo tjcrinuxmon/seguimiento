@@ -68,7 +68,7 @@ export const SECCIONES_RI = [
     estatus,
     notas,
   ] },
-  { key: 'requerimientos', label: 'Requerimientos', titulo: 'Requerimientos TEPJF y OIC', tabla: ['requerimiento', 'abogado', 'fechaVencimiento', 'fechaAtencion', 'estatus'], campos: [
+  { key: 'requerimientos', label: 'Requerimientos', titulo: 'Requerimientos TEPJF y OIC', tabla: ['expediente', 'requerimiento', 'abogado', 'fechaVencimiento', 'estatus'], campos: [
     { key: 'expediente', label: 'Expediente' },
     { key: 'requerimiento', label: 'Requerimiento', type: 'textarea', wide: true },
     { key: 'fechaNotificacion', label: 'Fecha de notificación', type: 'date' },
