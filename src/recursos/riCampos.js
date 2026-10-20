@@ -12,6 +12,7 @@ const abogado = (label = 'Abogado') => ({ key: 'abogado', label, type: 'select',
 const notas = { key: 'notasImportacion', label: 'Notas de la importación', type: 'textarea', wide: true, formOnly: true }
 
 export const DIRECCIONES_RI = ['', 'DEA', 'DEAJ', 'DECEYEC', 'DEOE', 'DEPPP', 'DERFE', 'DESPEN', 'FISCALIZACIÓN', 'UTCE', "VINC. OPL'S"]
+export const MODALIDADES_RI = ['', 'Electrónico', 'Físico', 'Híbrido']
 export const PARTES_RI = ['', 'Infractor', 'Denunciante', 'Denunciante / Infractor', 'N/A']
 
 export const SECCIONES_RI = [
@@ -80,6 +81,7 @@ export const SECCIONES_RI = [
   { key: 'turno_ri', label: 'Turno RI', titulo: 'Turno de recursos de inconformidad (competencia JGE)', campos: [
     { key: 'expediente', label: 'Expediente' },
     abogado('Abogado responsable'),
+    { key: 'modalidad', label: 'Modalidad de presentación', type: 'select', options: MODALIDADES_RI },
     { key: 'recurrente', label: 'Nombre del recurrente / cargo', type: 'textarea', wide: true },
     { key: 'notificacionPersonal', label: 'Notificación personal', type: 'date', formOnly: true },
     { key: 'parte', label: 'Parte', type: 'select', options: PARTES_RI },

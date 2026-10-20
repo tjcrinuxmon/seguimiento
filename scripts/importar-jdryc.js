@@ -62,7 +62,9 @@ const HOJAS = [
     [4, 'plazo', 'plazoTexto'], [5, 'vencimiento', 'fechaVencimiento', 'fecha'], [6, 'abogado', 'abogado', 'abogado'],
     [7, 'atención', null, 'oficioFecha:oficioAtencion,fechaAtencion'], [8, 'estatus', 'estatus', 'estatus'],
   ] },
-  { hoja: 'TURNO RI 2026', seccion: 'turno_ri', fila: 1, cols: [
+  // Turno RI: la "F" después del abogado ("América F") es la modalidad de presentación:
+  // con F → Híbrido, sin F → Electrónico.
+  { hoja: 'TURNO RI 2026', seccion: 'turno_ri', fila: 1, modalidad: true, cols: [
     [0, 'expediente', 'expediente'], [1, 'abogado', 'abogado', 'abogado'], [2, 'recurrente', 'recurrente'],
     [3, 'notificación', 'notificacionPersonal', 'fecha'], [4, 'denunciante', 'parte', 'parte'],
     [5, 'presentación', 'presentacionRecurso', 'fechaNota:presentacionNota'], [6, 'acto', 'actoControvertido'],
@@ -148,7 +150,9 @@ const registros = tablas.map(t => {
       } else if (clase === 'abogado') {
         const { nombres, conF } = J.abogadosDe(v)
         d[campo] = [...new Set(nombres.map(n => canonico.get(J.claveNombre(n))))].join('/')
-        if (conF) { avisos.conF++; nota(campo, `en el Excel decía "${texto}"`) }
+        if (conF) avisos.conF++
+        if (t.modalidad) d.modalidad = conF ? 'Híbrido' : 'Electrónico'
+        else if (conF) nota(campo, `en el Excel decía "${texto}"`)
       } else if (clase === 'estatus') {
         const e = J.estatusDe(v)
         if (e === null) { avisos.estatusRaro.push(texto); nota(campo, `"${texto}"`) } else d[campo] = e
@@ -163,6 +167,7 @@ const registros = tablas.map(t => {
       const f = m && J.fechaDe(m[1], { anio: ANIO })
       if (f) d.fechaOpinion = f.fecha
     }
+    if (t.modalidad && !d.modalidad) d.modalidad = 'Electrónico'
     if (notas.length) d.notasImportacion = notas.join('\n')
     return d
   }) }
@@ -177,7 +182,7 @@ for (const s of registros) {
 const unidos = [...variantes].filter(([, v]) => v.size > 1).map(([k, v]) => `${[...v.keys()].join(' / ')} → ${canonico.get(k)}`)
 console.log(`\nAbogados (${canonico.size}): ${[...new Set(canonico.values())].sort().join(', ')}`)
 if (unidos.length) console.log(`  Unificados: ${unidos.join(' · ')}`)
-if (avisos.conF) console.log(`  ${avisos.conF} celdas con "F" al final del nombre (se quitó; el original quedó en las notas)`)
+if (avisos.conF) console.log(`  ${avisos.conF} abogados con "F" (presentación física): modalidad Híbrido; los demás del turno RI, Electrónico`)
 if (avisos.sinAnio) console.log(`  ${avisos.sinAnio} fechas sin año: se tomó ${ANIO} (anotado en cada registro)`)
 if (avisos.fechasNoLeidas.length) console.log(`  ${avisos.fechasNoLeidas.length} fechas no reconocidas (el texto quedó en las notas):\n    - ${avisos.fechasNoLeidas.join('\n    - ')}`)
 if (avisos.estatusRaro.length) console.log(`  Estatus no reconocidos: ${avisos.estatusRaro.join(', ')}`)
