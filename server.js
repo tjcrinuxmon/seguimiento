@@ -107,7 +107,10 @@ app.get('/api/resumen', (req, res) => {
     out.litigio = r
   }
   if (p.recursos) {
-    out.recursos = db.prepare('SELECT COUNT(*) AS expedientes FROM rc_expedientes').get()
+    out.recursos = {
+      ...db.prepare('SELECT COUNT(*) AS expedientes FROM rc_expedientes').get(),
+      ...db.prepare('SELECT COUNT(*) AS ri FROM ric_registros').get(),
+    }
   }
   if (p.convenios) {
     out.convenios = db.prepare(`
@@ -300,6 +303,37 @@ app.put('/api/rc/expedientes/:id', exigir('recursos'), (req, res) => guardarRc(r
 app.delete('/api/rc/expedientes/:id', exigir('recursos'), (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede eliminar expedientes' })
   db.prepare('DELETE FROM rc_expedientes WHERE id = ?').run(req.params.id)
+  res.json({ ok: true })
+})
+
+// ─── Asuntos Laborales → Recursos y Consultas → RI-Consultas ──────────────────
+// Mismo esquema que Litigio: un registro JSON por renglón de cada catálogo.
+const RIC_SECTIONS = new Set(['juridico', 'rescisiones', 'transparencia', 'ctrl', 'requerimientos', 'turno_ri', 'protocolo'])
+const seccionRic = (req, res, next) =>
+  RIC_SECTIONS.has(req.params.section) ? next() : res.status(400).json({ error: 'Sección inválida' })
+
+app.get('/api/ric/:section', exigir('recursos'), seccionRic, (req, res) => {
+  const rows = db.prepare('SELECT id, data FROM ric_registros WHERE section = ? ORDER BY id ASC').all(req.params.section)
+  res.json(rows.map(filaDal))
+})
+
+app.post('/api/ric/:section', exigir('recursos'), seccionRic, (req, res) => {
+  const { id: _id, ...data } = req.body || {}
+  const result = db.prepare('INSERT INTO ric_registros (section, data) VALUES (?, ?)').run(req.params.section, JSON.stringify(data))
+  res.status(201).json(filaDal(db.prepare('SELECT id, data FROM ric_registros WHERE id = ?').get(result.lastInsertRowid)))
+})
+
+app.put('/api/ric/:section/:id', exigir('recursos'), seccionRic, (req, res) => {
+  const row = db.prepare('SELECT id FROM ric_registros WHERE id = ? AND section = ?').get(req.params.id, req.params.section)
+  if (!row) return res.status(404).json({ error: 'Registro no encontrado' })
+  const { id: _id, ...data } = req.body || {}
+  db.prepare('UPDATE ric_registros SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(JSON.stringify(data), req.params.id)
+  res.json(filaDal(db.prepare('SELECT id, data FROM ric_registros WHERE id = ?').get(req.params.id)))
+})
+
+app.delete('/api/ric/:section/:id', exigir('recursos'), seccionRic, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo un administrador puede eliminar registros' })
+  db.prepare('DELETE FROM ric_registros WHERE id = ? AND section = ?').run(req.params.id, req.params.section)
   res.json({ ok: true })
 })
 

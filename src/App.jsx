@@ -5,7 +5,7 @@ import Inicio from './components/Inicio.jsx'
 import EnConstruccion from './components/EnConstruccion.jsx'
 import Contexto from './components/Contexto.jsx'
 import DALView from './components/DALView.jsx'
-import RecursosView from './recursos/RecursosView.jsx'
+import RecursosSubdireccion from './recursos/RecursosSubdireccion.jsx'
 import ConveniosView from './components/ConveniosView.jsx'
 import DashboardDAL from './components/tablero/DashboardDAL.jsx'
 import DashboardDCyC from './components/tablero/DashboardDCyC.jsx'
@@ -115,7 +115,8 @@ export default function App() {
                 : <DALView user={user} onDashboard={verDashboard} />)}
               {vistaFinal === 'recursos' && (enDashboard
                 ? <DashboardRecursos filtro={filtro} onFiltro={cambiarFiltro} onVolver={volver} />
-                : <RecursosView user={user} onDashboard={verDashboard} />)}
+                : <RecursosSubdireccion user={user} parte={sub === 'ri' ? 'ri' : 'pls'}
+                    onParte={(p) => navigate(p === 'ri' ? 'recursos/ri' : 'recursos')} onDashboard={verDashboard} />)}
               {vistaFinal === 'dcyc-dashboard' && <DashboardDCyC />}
               {vistaFinal === 'convenios' && <ConveniosView user={user} />}
               {encontrado.rubro.enConstruccion && (

@@ -52,6 +52,12 @@ export const createExpedienteRc = (data)   => api.post('/rc/expedientes', data).
 export const updateExpedienteRc = (id, data) => api.put(`/rc/expedientes/${id}`, data).then(r => r.data)
 export const deleteExpedienteRc = (id)     => api.delete(`/rc/expedientes/${id}`).then(r => r.data)
 
+// Asuntos Laborales → Recursos y Consultas → RI-Consultas
+export const getRicSection   = (section)           => api.get(`/ric/${section}`).then(r => r.data)
+export const createRicRecord = (section, data)     => api.post(`/ric/${section}`, data).then(r => r.data)
+export const updateRicRecord = (section, id, data) => api.put(`/ric/${section}/${id}`, data).then(r => r.data)
+export const deleteRicRecord = (section, id)       => api.delete(`/ric/${section}/${id}`).then(r => r.data)
+
 // Días inhábiles
 export const getInhabiles    = ()               => api.get('/inhabiles').then(r => r.data)
 export const addInhabil      = (fecha, motivo)  => api.post('/inhabiles', { fecha, motivo }).then(r => r.data)

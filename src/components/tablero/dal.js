@@ -1,7 +1,8 @@
-import { getDalSection, getExpedientesRc, getInhabiles } from '../../api.js'
+import { getDalSection, getExpedientesRc, getInhabiles, getRicSection } from '../../api.js'
 import { contar, diasPara } from './Tablero.jsx'
 import { ETAPAS, calcularPlazos, etapaActual, expedienteClave } from '../../recursos/plazos.js'
 import { DETERMINACIONES } from '../../recursos/campos.js'
+import { SECCIONES_RI } from '../../recursos/riCampos.js'
 
 // Cálculos de los dashboards de Asuntos Laborales. Los usan el dashboard de la dirección,
 // el de cada subdirección y la franja de alertas de cada vista de captura, para que las
@@ -116,6 +117,45 @@ export function expedientesRecursos(expedientes) {
     determinaciones: contar(filas, x => etiquetaDet[x.determinacion], { sinValor: 'Sin determinar' }),
   }
 }
+
+// ── Recursos y Consultas → RI-Consultas ─────────────────────────────────────
+// Catálogos con plazo. Se da por atendido con la fecha de cierre o, si no la tiene, con el
+// estatus CONCLUIDO (o la resolución, en el turno RI); en ese caso cuenta como "a tiempo".
+// `aplica`: si el renglón tiene ese plazo (la opinión jurídica solo si se solicitó).
+export const TIPOS_RI = [
+  { clave: 'ri_transparencia', label: 'Transparencia', seccion: 'transparencia', vence: 'fechaVencimiento', cierre: 'fechaAtencion' },
+  { clave: 'ri_ctrl', label: 'CTRL', seccion: 'ctrl', vence: 'fechaVencimiento', cierre: 'fechaAtencion' },
+  { clave: 'ri_requerimientos', label: 'Requerimientos TEPJF y OIC', seccion: 'requerimientos', vence: 'fechaVencimiento', cierre: 'fechaAtencion' },
+  { clave: 'ri_instruccion', label: 'Turno RI: cerrar instrucción', seccion: 'turno_ri', vence: 'venceInstruccion', cierre: 'fechaProyecto', cerradoCon: 'fechaResolucion' },
+  { clave: 'ri_jge', label: 'Turno RI: aprobación JGE', seccion: 'turno_ri', vence: 'venceAprobacionJge', cierre: 'fechaResolucion' },
+  { clave: 'ri_opinion', label: 'Turno RI: opinión jurídica', seccion: 'turno_ri', vence: 'venceOpinion', cierre: 'fechaOpinion',
+    aplica: r => r.solicitudOpinion || r.venceOpinion || r.fechaOpinion },
+]
+
+export async function cargarRi() {
+  const listas = await Promise.all(SECCIONES_RI.map(s => getRicSection(s.key)))
+  return Object.fromEntries(SECCIONES_RI.map((s, i) => [s.key, listas[i]]))
+}
+
+export function asuntosRi(store) {
+  return TIPOS_RI.flatMap(t => (store[t.seccion] || []).filter(r => !t.aplica || t.aplica(r)).map(r => {
+    const cierre = r[t.cierre] || null
+    const cerrado = !!cierre || r.estatus === 'CONCLUIDO' || !!(t.cerradoCon && r[t.cerradoCon])
+    return {
+      id: `${t.clave}-${r.id}`, tipo: t.clave, tipoLabel: t.label,
+      expediente: r.expediente || r.numero || r.oficioConsulta || r.idSai || '—',
+      abogado: r.abogado || '', abogados: separarAbogados(r.abogado), vence: r[t.vence] || null, cierre,
+      ...clasificar(r[t.vence], cierre, cerrado),
+    }
+  }))
+}
+
+// Consultas por catálogo: en trámite y concluidas (incluye las que no tienen plazo)
+export const consultasRi = (store) => SECCIONES_RI.filter(s => s.campos.some(c => c.key === 'estatus')).map(s => {
+  const l = store[s.key] || []
+  return { seccion: s.key, label: s.titulo, total: l.length,
+    enTramite: l.filter(r => r.estatus === 'EN TRÁMITE').length, concluidas: l.filter(r => r.estatus === 'CONCLUIDO').length }
+})
 
 // ── Resúmenes comunes ───────────────────────────────────────────────────────
 export const alertas = (asuntos) => ({

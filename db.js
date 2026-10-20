@@ -75,7 +75,21 @@ db.exec(`
 `)
 db.exec('CREATE INDEX IF NOT EXISTS idx_dal_section ON dal_records(section)')
 
-// Asuntos Laborales → Recursos y Consultas: un registro por expediente
+// Asuntos Laborales → Recursos y Consultas → RI-Consultas: un registro por renglón de cada
+// catálogo (consultas jurídico-laborales, de transparencia, CTRL, requerimientos, turno RI…),
+// igual que Litigio: el contenido va como JSON en `data`.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ric_registros (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`)
+db.exec('CREATE INDEX IF NOT EXISTS idx_ric_section ON ric_registros(section)')
+
+// Asuntos Laborales → Recursos y Consultas (PLS): un registro por expediente
 // (INE/DEAJ/ALI/{numero}/{anio}). Las etapas del procedimiento, con sus fechas y
 // listas de oficios, van como JSON en `data`.
 db.exec(`

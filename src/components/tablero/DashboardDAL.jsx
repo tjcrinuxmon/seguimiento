@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Encabezado, Alertas, Subseccion, Panel } from './Tablero.jsx'
 import { MatrizPlazos } from './Plazos.jsx'
 import {
-  UMBRAL_DIAS, TIPOS_LITIGIO, TIPOS_RECURSOS, cargarLitigio, cargarRecursos, asuntosLitigio, asuntosRecursos,
-  expedientesRecursos, alertas, matriz, filtroAQuery,
+  UMBRAL_DIAS, TIPOS_LITIGIO, TIPOS_RECURSOS, TIPOS_RI, cargarLitigio, cargarRecursos, cargarRi, asuntosLitigio,
+  asuntosRecursos, asuntosRi, expedientesRecursos, alertas, matriz, filtroAQuery,
 } from './dal.js'
 import { TONOS } from '../../rubros.js'
 import Icono from '../Icono.jsx'
@@ -25,8 +25,8 @@ export default function DashboardDAL({ onNavigate }) {
   const cargar = useCallback(async () => {
     setError(null)
     try {
-      const [litigio, recursos] = await Promise.all([cargarLitigio(), cargarRecursos()])
-      setDatos({ litigio, recursos })
+      const [litigio, recursos, ri] = await Promise.all([cargarLitigio(), cargarRecursos(), cargarRi()])
+      setDatos({ litigio, recursos, ri })
     } catch (e) {
       setError(e?.response?.data?.error || e.message)
     }
@@ -36,10 +36,12 @@ export default function DashboardDAL({ onNavigate }) {
   const t = useMemo(() => {
     if (!datos) return null
     const lit = asuntosLitigio(datos.litigio)
-    const rc = asuntosRecursos(datos.recursos.expedientes, datos.recursos.inhabiles)
+    const pls = asuntosRecursos(datos.recursos.expedientes, datos.recursos.inhabiles)
+    const ri = asuntosRi(datos.ri)
     return {
       lit: { alertas: alertas(lit), matriz: matriz(lit, TIPOS_LITIGIO) },
-      rc: { alertas: alertas(rc), matriz: matriz(rc, TIPOS_RECURSOS), exp: expedientesRecursos(datos.recursos.expedientes) },
+      rc: { alertas: alertas([...pls, ...ri]), matriz: matriz(pls, TIPOS_RECURSOS), matrizRi: matriz(ri, TIPOS_RI),
+        exp: expedientesRecursos(datos.recursos.expedientes) },
     }
   }, [datos])
 
@@ -74,13 +76,16 @@ export default function DashboardDAL({ onNavigate }) {
         </Panel>
 
         <Subseccion titulo="Subdirección de Recursos y Consultas" tono={TONOS.gris} icono={icono('consulta', TONOS.gris)}
-          nota={t.rc.exp.total ? `${t.rc.exp.total} expedientes, ${t.rc.exp.enTramite} en trámite.` : 'Aún no hay expedientes capturados.'}
+          nota={t.rc.exp.total ? `PLS: ${t.rc.exp.total} expedientes, ${t.rc.exp.enTramite} en trámite.` : 'PLS: aún no hay expedientes capturados.'}
           onVer={() => onNavigate('recursos/dashboard')} />
         {t.rc.exp.total > 0 && (
-          <Panel titulo="Plazos por estatus">
+          <Panel titulo="Plazos por estatus · PLS">
             <MatrizPlazos m={t.rc.matriz} onFiltro={ir('recursos')} />
           </Panel>
         )}
+        <Panel titulo="Plazos por estatus · RI-Consultas">
+          <MatrizPlazos m={t.rc.matrizRi} onFiltro={ir('recursos')} />
+        </Panel>
       </>}
     </div>
   )

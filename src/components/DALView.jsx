@@ -9,7 +9,8 @@ const BASE_ABOGADOS = ['','JC','Luis Carlos','Eduardo','Edgar','Jessica','Guadal
   'Alejandra','Anay','Laura','Luisa','Christian','Aníbal','Absalón','Jorge','Zeferino']
 const ANOS = ['','2022','2023','2024','2025','2026']
 
-const AbogadosCtx = React.createContext(null)
+// Lista de abogados para los selectores con "+ Agregar abogado…". La usan Litigio y RI-Consultas.
+export const AbogadosCtx = React.createContext(null)
 const SECTIONS = ['actores','emplaz','noemplaz','sentencias','requerims','cumplims','incidentes','amparos','conciliacion','oic','reencauz']
 
 /* ─── UTILITIES ─────────────────────────────────────────────────────────── */
@@ -99,7 +100,9 @@ function FieldInput({ schema, value, onChange }) {
     </label>
   )
   if (type === 'select') {
-    const opts = (schema.allowAdd && abogadosCtx) ? abogadosCtx.abogados : (options || [])
+    const base = (schema.allowAdd && abogadosCtx) ? abogadosCtx.abogados : (options || [])
+    // Un valor guardado que ya no está en la lista (p. ej. importado) se conserva como opción
+    const opts = value && !base.includes(value) ? [...base, value] : base
     if (adding) return (
       <div>
         {labelEl}
@@ -288,8 +291,11 @@ function DataTable({ schemas, rows, onEdit, onDelete, canEdit, canDelete }) {
 }
 
 const PAGE_SIZE = 10
+const DAL_API = { crear: createDalRecord, actualizar: updateDalRecord, eliminar: deleteDalRecord }
 
-function SectionView({ title, section, schemas, records, onUpdate, user }) {
+// Tabla de captura de una sección (buscar, paginar, Excel, alta/edición/baja). `api` dice
+// dónde se guarda: Litigio por omisión; RI-Consultas pasa la suya.
+export function SectionView({ title, section, schemas, records, onUpdate, user, api = DAL_API }) {
   const [showForm,   setShowForm]   = useState(false)
   const [editing,    setEditing]    = useState(null)
   const [deleting,   setDeleting]   = useState(null)
@@ -334,10 +340,10 @@ function SectionView({ title, section, schemas, records, onUpdate, user }) {
     setSaving(true)
     try {
       if (editing) {
-        const saved = await updateDalRecord(section, editing.id, form)
+        const saved = await api.actualizar(section, editing.id, form)
         onUpdate(records.map(r => r.id === editing.id ? saved : r))
       } else {
-        const created = await createDalRecord(section, form)
+        const created = await api.crear(section, form)
         onUpdate([...records, created])
       }
       setShowForm(false); setEditing(null)
@@ -347,7 +353,7 @@ function SectionView({ title, section, schemas, records, onUpdate, user }) {
 
   const handleDelete = async () => {
     try {
-      await deleteDalRecord(section, deleting.id)
+      await api.eliminar(section, deleting.id)
       onUpdate(records.filter(r => r.id !== deleting.id))
     } catch { alert('Error al eliminar el registro') }
     setDeleting(null)
