@@ -41,8 +41,10 @@ export function fechaDe(v, { anio = null } = {}) {
   let m, f
 
   // d/m/aaaa o d-m-aaaa (también con año de 2 dígitos)
-  if ((m = t.match(/(?<!\d)(\d{1,2})[/-](\d{1,2})[/-](\d{4}|\d{2})(?!\d)/))) {
+  // Un año de 3 dígitos "20X" es un 202X al que le faltó un dígito ("05/06/206" → 2026).
+  if ((m = t.match(/(?<!\d)(\d{1,2})[/-](\d{1,2})[/-](\d{4}|20\d|\d{2})(?!\d)/))) {
     let [, a, b, y] = m.map(Number)
+    if (m[3].length === 3) y = 2020 + (y % 10)
     f = b > 12 && a <= 12 ? iso(y, a, b) : iso(y, b, a)
     if (f) return { fecha: f, exacta: m[0] === t, sinAnio: false }
   }

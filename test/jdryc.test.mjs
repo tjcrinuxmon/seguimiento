@@ -14,6 +14,7 @@ assert.equal(f('2/01/2026 ante la JLE en Jalisco'), '2026-01-02')
 assert.equal(f('1/21/26'), '2026-01-21')
 assert.equal(f('07-10-2026 FONDO'), '2026-10-07')
 assert.equal(f('08/04/2026 \r\n+ 2 días\r\n10/04/2026'), '2026-04-08')
+assert.equal(f('05/06/206'), '2026-06-05')            // al año le faltó un dígito
 // Con el mes en letra
 assert.equal(f('07 de enero 2026'), '2026-01-07')
 assert.equal(f('20 DE MARZO DE 2026'), '2026-03-20')
