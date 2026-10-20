@@ -32,9 +32,9 @@ export const SECCIONES_RI = [
     { key: 'observaciones', label: 'Observaciones', type: 'textarea', wide: true, formOnly: true },
     notas,
   ] },
-  { key: 'rescisiones', label: 'Rescisiones', titulo: 'Consultas de rescisiones', tabla: ['asunto', 'abogado', 'fechaRecepcion', 'fechaDesahogo', 'estatus'], campos: [
+  { key: 'rescisiones', label: 'Rescisiones', titulo: 'Consultas de rescisiones', tabla: ['idSai', 'asunto', 'abogado', 'fechaRecepcion', 'fechaDesahogo', 'estatus'], campos: [
     { key: 'numero', label: 'Número de consulta' },
-    { key: 'idSai', label: 'ID SAI' },
+    { key: 'idSai', label: 'Origen / SAI' },
     { key: 'asunto', label: 'Asunto', type: 'textarea', wide: true },
     { key: 'fechaRecepcion', label: 'Fecha de recepción', type: 'date' },
     { key: 'medio', label: 'Medio por el que llegó' },
