@@ -110,7 +110,7 @@ export const SECCIONES_RI = [
     { key: 'criterio', label: 'Criterio', type: 'textarea', wide: true, formOnly: true },
     notas,
   ] },
-  { key: 'protocolo', label: 'Protocolo', titulo: 'Protocolo', tabla: ['expediente', 'personas', 'opinion', 'fechaOpinion'], campos: [
+  { key: 'protocolo', label: 'Protocolo', titulo: 'Protocolo', tabla: ['expediente', 'personas', 'opinion', 'fechaDictamen'], campos: [
     { key: 'expediente', label: 'Expediente' },
     { key: 'personas', label: 'Persona(s) funcionaria(s) involucrada(s)', type: 'textarea', wide: true },
     { key: 'regimen', label: 'Régimen laboral / contractual' },
