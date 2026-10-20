@@ -82,7 +82,7 @@ export const SECCIONES_RI = [
     estatus,
     notas,
   ] },
-  { key: 'turno_ri', label: 'Turno RI', titulo: 'Turno de recursos de inconformidad (competencia JGE)', tabla: ['expediente', 'abogado', 'venceInstruccion', 'venceAprobacionJge', 'fechaResolucion'], campos: [
+  { key: 'turno_ri', label: 'Turno RI', titulo: 'Turno de recursos de inconformidad (competencia JGE)', tabla: ['expediente', 'abogado', 'direccionDesignada', 'sentido', 'opinionJuridica'], campos: [
     { key: 'expediente', label: 'Expediente' },
     abogado('Abogado responsable'),
     { key: 'modalidad', label: 'Modalidad de presentación', type: 'select', options: MODALIDADES_RI },
