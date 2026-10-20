@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Encabezado, Alertas, Subseccion } from './Tablero.jsx'
-import { BloqueLitigio, BloqueRecursos } from './BloquesDAL.jsx'
-import { UMBRAL_DIAS, cargarLitigio, cargarRecursos, calcularLitigio, calcularRecursos } from './dal.js'
+import { Encabezado, Alertas, Subseccion, Panel } from './Tablero.jsx'
+import { MatrizPlazos } from './Plazos.jsx'
+import {
+  UMBRAL_DIAS, TIPOS_LITIGIO, TIPOS_RECURSOS, cargarLitigio, cargarRecursos, asuntosLitigio, asuntosRecursos,
+  expedientesRecursos, alertas, matriz, filtroAQuery,
+} from './dal.js'
 import { TONOS } from '../../rubros.js'
 import Icono from '../Icono.jsx'
 
 // Dashboard de la Dirección de Asuntos Laborales: alertas de las dos subdirecciones sumadas
-// y, de cada una, sus cifras y plazos. El detalle (gráficas y carga por abogado) está en el
-// dashboard de cada subdirección (DashboardSubdireccion.jsx), con los mismos cálculos.
+// y la matriz de plazos de cada una. Cada número lleva al dashboard de la subdirección con
+// el detalle ya filtrado; ahí están la carga por abogado y lo demás (DashboardSubdireccion.jsx).
 
 const icono = (nombre, tono) => (
   <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: tono.icono }}>
@@ -30,15 +33,22 @@ export default function DashboardDAL({ onNavigate }) {
   }, [])
   useEffect(() => { cargar() }, [cargar])
 
-  const t = useMemo(() => datos && {
-    lit: calcularLitigio(datos.litigio),
-    rc: calcularRecursos(datos.recursos.expedientes, datos.recursos.inhabiles),
+  const t = useMemo(() => {
+    if (!datos) return null
+    const lit = asuntosLitigio(datos.litigio)
+    const rc = asuntosRecursos(datos.recursos.expedientes, datos.recursos.inhabiles)
+    return {
+      lit: { alertas: alertas(lit), matriz: matriz(lit, TIPOS_LITIGIO) },
+      rc: { alertas: alertas(rc), matriz: matriz(rc, TIPOS_RECURSOS), exp: expedientesRecursos(datos.recursos.expedientes) },
+    }
   }, [datos])
+
+  const ir = (vista) => (f) => onNavigate(`${vista}/dashboard?${filtroAQuery(f)}`)
 
   return (
     <div className="fade-in max-w-6xl mx-auto flex flex-col gap-5">
       <Encabezado titulo="Dashboard · Asuntos Laborales"
-        subtitulo="Subdirección de Litigio y Subdirección de Recursos y Consultas. Se actualiza al abrirlo." />
+        subtitulo="Subdirección de Litigio y Subdirección de Recursos y Consultas. Haz clic en cualquier número para ver el detalle." />
 
       {error && (
         <div className="carga-error" role="alert">
@@ -50,21 +60,27 @@ export default function DashboardDAL({ onNavigate }) {
 
       {t && <>
         {/* Alertas de toda la dirección */}
-        <Alertas vencidos={t.lit.vencidos + t.rc.vencidos} porVencer={t.lit.porVencer + t.rc.porVencer} umbral={UMBRAL_DIAS} />
-        {(t.lit.vencidos + t.rc.vencidos + t.lit.porVencer + t.rc.porVencer) > 0 && (
+        <Alertas vencidos={t.lit.alertas.vencidos + t.rc.alertas.vencidos} porVencer={t.lit.alertas.porVencer + t.rc.alertas.porVencer} umbral={UMBRAL_DIAS} />
+        {(t.lit.alertas.vencidos + t.rc.alertas.vencidos + t.lit.alertas.porVencer + t.rc.alertas.porVencer) > 0 && (
           <p className="text-xs text-ine-muted -mt-3">
-            Litigio: {t.lit.vencidos} vencidos y {t.lit.porVencer} por vencer · Recursos y Consultas: {t.rc.vencidos} vencidos y {t.rc.porVencer} por vencer.
+            Litigio: {t.lit.alertas.vencidos} vencidos y {t.lit.alertas.porVencer} por vencer · Recursos y Consultas: {t.rc.alertas.vencidos} vencidos y {t.rc.alertas.porVencer} por vencer.
           </p>
         )}
 
         <Subseccion titulo="Subdirección de Litigio" tono={TONOS.beige} icono={icono('balanza', TONOS.beige)}
           onVer={() => onNavigate('litigio/dashboard')} />
-        <BloqueLitigio t={t.lit} compacto />
+        <Panel titulo="Plazos por estatus">
+          <MatrizPlazos m={t.lit.matriz} onFiltro={ir('litigio')} />
+        </Panel>
 
         <Subseccion titulo="Subdirección de Recursos y Consultas" tono={TONOS.gris} icono={icono('consulta', TONOS.gris)}
-          nota={t.rc.total ? `${t.rc.total} expedientes, ${t.rc.enTramite} en trámite.` : 'Aún no hay expedientes capturados.'}
+          nota={t.rc.exp.total ? `${t.rc.exp.total} expedientes, ${t.rc.exp.enTramite} en trámite.` : 'Aún no hay expedientes capturados.'}
           onVer={() => onNavigate('recursos/dashboard')} />
-        <BloqueRecursos t={t.rc} compacto />
+        {t.rc.exp.total > 0 && (
+          <Panel titulo="Plazos por estatus">
+            <MatrizPlazos m={t.rc.matriz} onFiltro={ir('recursos')} />
+          </Panel>
+        )}
       </>}
     </div>
   )

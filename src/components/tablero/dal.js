@@ -6,16 +6,59 @@ import { DETERMINACIONES } from '../../recursos/campos.js'
 // Cálculos de los dashboards de Asuntos Laborales. Los usan el dashboard de la dirección,
 // el de cada subdirección y la franja de alertas de cada vista de captura, para que las
 // cifras sean las mismas en todos lados.
-export const UMBRAL_DIAS = 7          // "por vencer": plazos que vencen en esta cantidad de días o menos
-export const HORIZONTE_DIAS = 30      // las tablas de plazos muestran hasta este plazo (y todos los vencidos)
+//
+// Todo sale de una lista de "asuntos": cada cosa con fecha de vencimiento (un emplazamiento,
+// una sentencia, un plazo de un expediente de Recursos…) con su estatus. De esa lista se
+// arman la matriz de plazos por estatus, la carga por abogado, el detalle filtrado y las alertas.
+export const UMBRAL_DIAS = 7          // "por vencer": vence en esta cantidad de días o menos
+export const URGENTE_DIAS = 3         // dentro de "por vencer", lo que vence en 3 días o menos
 export const SECCIONES = ['actores', 'emplaz', 'noemplaz', 'sentencias', 'requerims', 'cumplims', 'incidentes', 'amparos', 'conciliacion', 'oic', 'reencauz']
 
-// Litigio: plazos que cuentan como pendientes mientras no se registre su entrega/cumplimiento
-const PLAZOS_LITIGIO = [
-  { seccion: 'sentencias', tipo: 'Sentencia',     pendiente: r => !r.fechaEntregaTEPJF },
-  { seccion: 'requerims',  tipo: 'Requerimiento', pendiente: r => !r.fechaEntregaTEPJF },
-  { seccion: 'incidentes', tipo: 'Incidente',     pendiente: () => true },
-  { seccion: 'amparos',    tipo: 'Amparo',        pendiente: r => !r.fechaCumplimiento },
+// Estatus de un asunto, en el orden de las columnas de la matriz
+export const ESTATUS = [
+  { clave: 'vencido',   label: 'Vencido',        grupo: 'pendiente' },
+  { clave: 'urgente',   label: `Vence ≤${URGENTE_DIAS} días`, grupo: 'pendiente' },
+  { clave: 'proximo',   label: `${URGENTE_DIAS + 1}–${UMBRAL_DIAS} días`, grupo: 'pendiente' },
+  { clave: 'en_plazo',  label: 'En plazo',       grupo: 'pendiente' },
+  { clave: 'a_tiempo',  label: 'A tiempo',       grupo: 'atendido' },
+  { clave: 'fuera',     label: 'Fuera de plazo', grupo: 'atendido' },
+  { clave: 'sin_fecha', label: 'Sin fecha',      grupo: 'sin_fecha' },
+]
+// Filtros de estatus que agrupan varios (para clics en totales y en la carga por abogado)
+export const GRUPOS = {
+  pendiente: { label: 'Pendientes',  estatus: ['vencido', 'urgente', 'proximo', 'en_plazo'] },
+  por_vencer:{ label: `Por vencer (≤${UMBRAL_DIAS} días)`, estatus: ['urgente', 'proximo'] },
+  atendido:  { label: 'Atendidos',   estatus: ['a_tiempo', 'fuera'] },
+}
+export const etiquetaEstatus = (f) => GRUPOS[f]?.label || ESTATUS.find(e => e.clave === f)?.label || f
+export const cumpleEstatus = (a, f) => !f || a.estatus === f || !!GRUPOS[f]?.estatus.includes(a.estatus)
+
+// "JC/Absalón" → ['JC', 'Absalón']: un asunto compartido cuenta en la carga de cada quien
+export const separarAbogados = (s) => String(s || '').split('/').map(x => x.trim()).filter(Boolean)
+
+const diasEntre = (desde, hasta) => Math.round((new Date(hasta + 'T00:00:00') - new Date(desde + 'T00:00:00')) / 86400000)
+
+// Estatus de un asunto según su vencimiento y la fecha en que se atendió (si ya se atendió).
+export function clasificar(vence, cierre, cerrado = !!cierre) {
+  const dias = diasPara(vence)
+  if (dias === null) return { estatus: 'sin_fecha', dias: null, retraso: null }
+  if (cerrado) {
+    const retraso = cierre ? diasEntre(vence, cierre) : 0
+    return { estatus: retraso > 0 ? 'fuera' : 'a_tiempo', dias, retraso }
+  }
+  const estatus = dias < 0 ? 'vencido' : dias <= URGENTE_DIAS ? 'urgente' : dias <= UMBRAL_DIAS ? 'proximo' : 'en_plazo'
+  return { estatus, dias, retraso: null }
+}
+
+// ── Litigio ─────────────────────────────────────────────────────────────────
+// Qué fecha vence y con qué campos se da por atendido cada tipo (si son varios, se necesitan
+// todos y cuenta el más tardío). Conciliación no entra: es una audiencia, no un plazo.
+export const TIPOS_LITIGIO = [
+  { clave: 'emplaz',     label: 'Emplazamientos', vence: 'vencimiento',      cierre: ['entregaTribunal'] },
+  { clave: 'sentencias', label: 'Sentencias',     vence: 'fechaVencimiento', cierre: ['fechaEntregaTEPJF'] },
+  { clave: 'requerims',  label: 'Requerimientos', vence: 'fechaVencimiento', cierre: ['fechaNotificacion', 'fechaEntregaTEPJF'] },
+  { clave: 'incidentes', label: 'Incidentes',     vence: 'fechaVencimiento', cierre: ['fechaNotificacion'] },
+  { clave: 'amparos',    label: 'Amparos',        vence: 'fechaVencimiento', cierre: ['fechaCumplimiento'] },
 ]
 
 export async function cargarLitigio() {
@@ -23,81 +66,112 @@ export async function cargarLitigio() {
   return Object.fromEntries(SECCIONES.map((s, i) => [s, secciones[i]]))
 }
 
+export function asuntosLitigio(d) {
+  return TIPOS_LITIGIO.flatMap(t => (d[t.clave] || []).map(r => {
+    const fechas = t.cierre.map(c => r[c])
+    const cerrado = fechas.every(Boolean)
+    const cierre = cerrado ? fechas.sort().pop() : null
+    return {
+      id: `${t.clave}-${r.id}`, tipo: t.clave, tipoLabel: t.label, expediente: r.expediente || '—',
+      abogado: r.abogado || '', abogados: separarAbogados(r.abogado), vence: r[t.vence] || null, cierre, ...clasificar(r[t.vence], cierre, cerrado),
+    }
+  }))
+}
+
+// ── Recursos y Consultas ────────────────────────────────────────────────────
+// Solo los plazos que le tocan a la DEAJ (los de las partes solo informan).
+export const TIPOS_RECURSOS = [
+  { clave: 'acuerdo_listo',    label: 'Acuerdo listo (5º mes)' },
+  { clave: 'revision',         label: 'Revisión del acuerdo' },
+  { clave: 'termino',          label: 'Término: notificar acuerdo' },
+  { clave: 'acuerdo_admision', label: 'Acuerdo de admisión de pruebas' },
+  { clave: 'admision',         label: 'Admisión de pruebas' },
+  { clave: 'resolucion',       label: 'Resolución y envío a la SE' },
+]
+const etiquetaRc = Object.fromEntries(TIPOS_RECURSOS.map(t => [t.clave, t.label]))
+
 export async function cargarRecursos() {
   const [expedientes, inhabiles] = await Promise.all([getExpedientesRc(), getInhabiles()])
   return { expedientes, inhabiles: new Set(inhabiles.map(d => d.fecha)) }
 }
 
-// Solo los plazos pendientes de Litigio (para la franja de alertas, sin el resto del cálculo)
-export function plazosLitigio(d) {
-  return PLAZOS_LITIGIO.flatMap(p => (d[p.seccion] || [])
-    .filter(r => p.pendiente(r))
-    .map(r => ({ id: `${p.seccion}-${r.id}`, expediente: r.expediente, tipo: p.tipo, abogado: r.abogado, dias: diasPara(r.fechaVencimiento) }))
-    .filter(r => r.dias !== null))
+export function asuntosRecursos(expedientes, inhabiles) {
+  return expedientes.flatMap(x => calcularPlazos(x, inhabiles)
+    .filter(p => p.quien === 'deaj')
+    .map(p => ({
+      id: `${x.id}-${p.clave}`, tipo: p.clave, tipoLabel: etiquetaRc[p.clave] || p.label, expediente: expedienteClave(x),
+      abogado: x.abogado || '', abogados: separarAbogados(x.abogado), vence: p.fecha, cierre: p.cuando || null, ...clasificar(p.fecha, p.cuando, p.hecho),
+    })))
 }
 
-export const alertasLitigio = (d) => {
-  const plazos = plazosLitigio(d)
-  return {
-    vencidos: plazos.filter(r => r.dias < 0).length,
-    porVencer: plazos.filter(r => r.dias >= 0 && r.dias <= UMBRAL_DIAS).length,
-  }
-}
-
-export function calcularLitigio(d) {
-  const plazos = plazosLitigio(d)
-
-  // Actores por año; si hay muchos años, los más antiguos se agrupan en "Anteriores"
-  let porAno = contar(d.actores, r => r.ano).sort((a, b) => a.nombre.localeCompare(b.nombre))
-  if (porAno.length > 7) {
-    const viejos = porAno.slice(0, porAno.length - 6)
-    porAno = [{ nombre: 'Anteriores', valor: viejos.reduce((s, x) => s + x.valor, 0) }, ...porAno.slice(-6)]
-  }
-  const concluidos = d.cumplims.filter(r => r.estatus === 'FORMALMENTE CONCLUIDO').length
-
-  return {
-    ...alertasLitigio(d),
-    tablaPlazos: plazos.filter(r => r.dias <= HORIZONTE_DIAS).sort((a, b) => a.dias - b.dias),
-    porAno,
-    cumplimientos: contar(d.cumplims, r => r.estatus && r.estatus.charAt(0) + r.estatus.slice(1).toLowerCase(), { sinValor: 'Sin estatus' }),
-    totalCumplims: d.cumplims.length,
-    carga: contar([...d.sentencias, ...d.requerims, ...d.incidentes, ...d.amparos, ...d.emplaz, ...d.conciliacion], r => r.abogado, { tope: 8 }),
-    cifras: [
-      { label: 'Actores / expedientes', valor: d.actores.length },
-      { label: 'Emplazamientos', valor: d.emplaz.length },
-      { label: 'Sentencias', valor: d.sentencias.length, nota: `${d.sentencias.filter(r => !r.fechaEntregaTEPJF).length} sin entrega` },
-      { label: 'Requerimientos', valor: d.requerims.length, nota: `${d.requerims.filter(r => !r.fechaEntregaTEPJF).length} sin entrega` },
-      { label: 'Cumplimientos', valor: d.cumplims.length, nota: `${concluidos} concluidos` },
-      { label: 'Incidentes', valor: d.incidentes.length },
-      { label: 'Amparos', valor: d.amparos.length, nota: `${d.amparos.filter(r => !r.fechaCumplimiento).length} sin cumplimiento` },
-      { label: 'Conciliación', valor: d.conciliacion.length },
-    ],
-  }
-}
-
-export function calcularRecursos(expedientes, inhabiles) {
-  const filas = expedientes.map(x => ({ ...x, etapa: etapaActual(x), plazos: calcularPlazos(x, inhabiles) }))
+// Etapas y determinaciones de los expedientes (no tienen fecha, pero dicen cómo va cada uno)
+export function expedientesRecursos(expedientes) {
+  const filas = expedientes.map(x => ({ ...x, etapa: etapaActual(x) }))
   const enTramite = filas.filter(x => !x.etapa.concluido)
-  // Solo los plazos que le tocan a la DEAJ y no se han cumplido
-  const pendientes = filas.flatMap(x => x.plazos
-    .filter(p => p.quien === 'deaj' && ['vencido', 'por_vencer', 'pendiente'].includes(p.estado))
-    .map(p => ({ ...p, id: `${x.id}-${p.clave}`, expediente: expedienteClave(x), abogado: x.abogado })))
   const etiquetaDet = Object.fromEntries(DETERMINACIONES.map(d => [d.valor, d.label]))
-
   return {
-    vencidos: pendientes.filter(p => p.estado === 'vencido').length,
-    porVencer: pendientes.filter(p => p.estado === 'por_vencer').length,
-    tablaPlazos: pendientes.filter(p => p.dias <= HORIZONTE_DIAS).sort((a, b) => a.dias - b.dias),
-    porEtapa: ETAPAS.map(et => ({ nombre: et.label, valor: enTramite.filter(x => x.etapa.clave === et.clave).length })).filter(x => x.valor),
-    determinaciones: contar(filas, x => etiquetaDet[x.determinacion], { sinValor: 'Sin determinar' }),
-    carga: contar(enTramite, x => x.abogado, { tope: 8, sinValor: 'Sin abogado' }),
     total: filas.length,
     enTramite: enTramite.length,
-    cifras: [
-      { label: 'Expedientes', valor: filas.length },
-      { label: 'En trámite', valor: enTramite.length },
-      { label: 'Concluidos', valor: filas.length - enTramite.length },
-      { label: 'Con plazo vencido', valor: new Set(pendientes.filter(p => p.estado === 'vencido').map(p => p.expediente)).size },
-    ],
+    porEtapa: ETAPAS.map(et => ({ nombre: et.label, valor: enTramite.filter(x => x.etapa.clave === et.clave).length })).filter(x => x.valor),
+    determinaciones: contar(filas, x => etiquetaDet[x.determinacion], { sinValor: 'Sin determinar' }),
   }
+}
+
+// ── Resúmenes comunes ───────────────────────────────────────────────────────
+export const alertas = (asuntos) => ({
+  vencidos: asuntos.filter(a => a.estatus === 'vencido').length,
+  porVencer: asuntos.filter(a => cumpleEstatus(a, 'por_vencer')).length,
+})
+
+// Matriz tipo × estatus: { filas: [{ tipo, label, cuenta: {estatus: n}, total }], totales: {estatus: n}, total }
+export function matriz(asuntos, tipos) {
+  const vacia = () => Object.fromEntries(ESTATUS.map(e => [e.clave, 0]))
+  const totales = vacia()
+  const filas = tipos.map(t => {
+    const cuenta = vacia()
+    for (const a of asuntos) if (a.tipo === t.clave) { cuenta[a.estatus]++; totales[a.estatus]++ }
+    return { tipo: t.clave, label: t.label, cuenta, total: Object.values(cuenta).reduce((s, n) => s + n, 0) }
+  })
+  return { filas, totales, total: asuntos.length }
+}
+
+// Carga por abogado: pendientes, vencidos, por vencer, atendidos y fuera de plazo. Un asunto
+// compartido ("JC/Absalón") cuenta para cada quien; los asuntos sin fecha no cuentan.
+export function cargaAbogados(asuntos) {
+  const m = new Map()
+  for (const a of asuntos) {
+    if (a.estatus === 'sin_fecha') continue
+    for (const k of a.abogados.length ? a.abogados : ['']) {
+      const r = m.get(k) || { abogado: k, pendiente: 0, vencido: 0, por_vencer: 0, atendido: 0, fuera: 0 }
+      if (cumpleEstatus(a, 'pendiente')) r.pendiente++
+      if (a.estatus === 'vencido') r.vencido++
+      if (cumpleEstatus(a, 'por_vencer')) r.por_vencer++
+      if (cumpleEstatus(a, 'atendido')) r.atendido++
+      if (a.estatus === 'fuera') r.fuera++
+      m.set(k, r)
+    }
+  }
+  return [...m.values()].sort((a, b) => b.vencido - a.vencido || b.pendiente - a.pendiente || b.atendido - a.atendido)
+}
+
+// Asuntos que cumplen el filtro { tipo, estatus, abogado }; lo pendiente primero, del más urgente.
+export function filtrar(asuntos, f = {}) {
+  const orden = (a) => (cumpleEstatus(a, 'pendiente') ? 0 : 1)
+  return asuntos
+    .filter(a => (!f.tipo || a.tipo === f.tipo) && cumpleEstatus(a, f.estatus) && (f.abogado === undefined || (f.abogado ? a.abogados.includes(f.abogado) : !a.abogados.length)))
+    .sort((a, b) => orden(a) - orden(b) || (orden(a) === 0 ? a.dias - b.dias : (b.vence || '').localeCompare(a.vence || '')))
+}
+
+// Filtro del detalle ↔ dirección: {tipo:'emplaz', estatus:'vencido'} ↔ "tipo=emplaz&estatus=vencido".
+// null = detalle cerrado (sin "?"); {} = detalle abierto sin filtro ("todo=1").
+export function filtroAQuery(f) {
+  if (!f) return ''
+  const q = new URLSearchParams(Object.entries(f).filter(([, v]) => v !== undefined && v !== null)).toString()
+  return q || 'todo=1'
+}
+export function queryAFiltro(q) {
+  if (q === undefined) return null
+  const f = Object.fromEntries(new URLSearchParams(q))
+  delete f.todo
+  return f
 }

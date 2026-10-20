@@ -70,7 +70,8 @@ export function diasEntre(desdeIso, hastaIso) {
 }
 
 // ─── Plazos de un expediente ──────────────────────────────────────────────────
-// Cada plazo: { clave, etapa, label, fecha, quien: 'deaj' | 'partes', hecho, nota }
+// Cada plazo: { clave, etapa, label, fecha, quien: 'deaj' | 'partes', hecho, cuando, nota }
+//   - cuando: fecha en que se cumplió (para saber si fue a tiempo), si está hecho.
 //   - 'deaj': algo que nos toca hacer; vence si pasa la fecha y no está hecho.
 //   - 'partes': un plazo que corre para las partes; solo informa cuándo termina.
 const ultimaFecha = (lista, campo) =>
@@ -84,11 +85,13 @@ export function calcularPlazos(e, inhabiles = new Set()) {
   const termino = sumarMeses(e.fecha_recepcion_deaj, 6)
   if (termino) {
     add({ clave: 'acuerdo_listo', etapa: 'determinacion', label: 'Acuerdo de inicio / no inicio listo (5º mes)',
-      fecha: sumarMeses(termino, -1), quien: 'deaj', hecho: !!e.fecha_acuerdo_determinacion || notificado })
+      fecha: sumarMeses(termino, -1), quien: 'deaj', hecho: !!e.fecha_acuerdo_determinacion || notificado,
+      cuando: e.fecha_acuerdo_determinacion || e.fecha_notificacion_determinacion || null })
     add({ clave: 'revision', etapa: 'determinacion', label: 'Revisión del acuerdo terminada',
-      fecha: sumarDias(termino, -15), quien: 'deaj', hecho: !!e.fecha_acuerdo_determinacion || notificado })
+      fecha: sumarDias(termino, -15), quien: 'deaj', hecho: !!e.fecha_acuerdo_determinacion || notificado,
+      cuando: e.fecha_acuerdo_determinacion || e.fecha_notificacion_determinacion || null })
     add({ clave: 'termino', etapa: 'determinacion', label: 'Término: notificar acuerdo de inicio / no inicio',
-      fecha: termino, quien: 'deaj', hecho: notificado,
+      fecha: termino, quien: 'deaj', hecho: notificado, cuando: e.fecha_notificacion_determinacion || null,
       nota: esHabil(termino, inhabiles) ? null : 'El término cae en día inhábil.' })
   }
 
@@ -101,11 +104,11 @@ export function calcularPlazos(e, inhabiles = new Set()) {
   if (e.determinacion === 'inicio') {
     if (e.fecha_contestacion) {
       add({ clave: 'acuerdo_admision', etapa: 'pruebas', label: 'Emitir acuerdo de admisión de pruebas',
-        fecha: sumarHabiles(e.fecha_contestacion, 8, inhabiles), quien: 'deaj', hecho: !!e.fecha_emision_admision })
+        fecha: sumarHabiles(e.fecha_contestacion, 8, inhabiles), quien: 'deaj', hecho: !!e.fecha_emision_admision, cuando: e.fecha_emision_admision || null })
     }
     if (e.fecha_emision_admision) {
       add({ clave: 'admision', etapa: 'pruebas', label: 'Admisión de pruebas',
-        fecha: sumarHabiles(e.fecha_emision_admision, 5, inhabiles), quien: 'deaj', hecho: !!e.fecha_admision_pruebas })
+        fecha: sumarHabiles(e.fecha_emision_admision, 5, inhabiles), quien: 'deaj', hecho: !!e.fecha_admision_pruebas, cuando: e.fecha_admision_pruebas || null })
     }
     const envioAlegatos = ultimaFecha(e.oficios_alegatos, 'fecha_envio')
     if (envioAlegatos) {
@@ -114,7 +117,7 @@ export function calcularPlazos(e, inhabiles = new Set()) {
     }
     if (e.fecha_cierre_instruccion) {
       add({ clave: 'resolucion', etapa: 'resolucion', label: 'Acuerdo de resolución y envío a la SE',
-        fecha: sumarHabiles(e.fecha_cierre_instruccion, 25, inhabiles), quien: 'deaj', hecho: !!e.fecha_envio_se })
+        fecha: sumarHabiles(e.fecha_cierre_instruccion, 25, inhabiles), quien: 'deaj', hecho: !!e.fecha_envio_se, cuando: e.fecha_envio_se || null })
     }
   }
 

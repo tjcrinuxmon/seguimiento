@@ -18,7 +18,11 @@ vuelve a necesitar.
 Asuntos Laborales tiene dos niveles de dashboard: el de la dirección (alertas sumadas y,
 de cada subdirección, cifras y plazos) y el de cada subdirección (`#/litigio/dashboard`,
 `#/recursos/dashboard`), que se abre desde la franja de alertas arriba de la captura.
-Todos usan los mismos cálculos (`src/components/tablero/dal.js`).
+Todos usan los mismos cálculos (`src/components/tablero/dal.js`): cada asunto con
+vencimiento se clasifica como vencido, por vencer (≤3 y 4–7 días), en plazo, atendido a tiempo
+o fuera de plazo, y cada número de la matriz o de la carga por abogado abre el detalle
+filtrado. Qué campo da por atendido cada tipo está en `TIPOS_LITIGIO` (debe coincidir con
+`entregaBadge` en `DALView.jsx`).
 
 Los rubros y sus permisos se definen en `src/rubros.js` (menú e inicio) y en
 `permisos()` de `server.js` (API); deben coincidir.

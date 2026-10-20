@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { getDalSection, createDalRecord, updateDalRecord, deleteDalRecord } from '../api.js'
 import { FranjaAlertas } from './tablero/Tablero.jsx'
-import { UMBRAL_DIAS, alertasLitigio } from './tablero/dal.js'
+import { UMBRAL_DIAS, alertas as contarAlertas, asuntosLitigio } from './tablero/dal.js'
 
 /* ─── CONSTANTS ─────────────────────────────────────────────────────────── */
 const BASE_ABOGADOS = ['','JC','Luis Carlos','Eduardo','Edgar','Jessica','Guadalupe',
@@ -440,6 +440,8 @@ function SectionView({ title, section, schemas, records, onUpdate, user }) {
 }
 
 /* ─── SECTION SCHEMAS ───────────────────────────────────────────────────── */
+// entregaBadge marca el campo que da por atendido el plazo (verde a tiempo, rojo fuera de plazo);
+// debe coincidir con TIPOS_LITIGIO de tablero/dal.js, que usa los dashboards.
 const S_ACTORES = [
   { key:'expediente',    label:'Expediente',    required:true },
   { key:'actor',         label:'Actor',         required:true },
@@ -478,9 +480,9 @@ const S_REQUERIMS = [
   { key:'expediente',        label:'Expediente',        required:true },
   { key:'plazo',             label:'Plazo (días)',       type:'number' },
   { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date' },
-  { key:'fechaNotificacion', label:'Fecha Notificación', type:'date', entregaBadge:'fechaVencimiento' },
+  { key:'fechaNotificacion', label:'Fecha Notificación', type:'date' },
   { key:'abogado',           label:'Abogado',           type:'select', options:BASE_ABOGADOS, allowAdd:true },
-  { key:'fechaEntregaTEPJF', label:'Entrega TEPJF',     type:'date' },
+  { key:'fechaEntregaTEPJF', label:'Entrega TEPJF',     type:'date', entregaBadge:'fechaVencimiento' },
   { key:'observaciones',     label:'Observaciones',     type:'textarea', wide:true },
 ]
 const S_CUMPLIMS = [
@@ -509,10 +511,10 @@ const S_AMPAROS = [
   { key:'actor',             label:'Actor' },
   { key:'plazo',             label:'Plazo (días)',       type:'number' },
   { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date' },
-  { key:'fechaNotificacion', label:'Fecha Notificación', type:'date', entregaBadge:'fechaVencimiento' },
+  { key:'fechaNotificacion', label:'Fecha Notificación', type:'date' },
   { key:'abogado',           label:'Abogado',           type:'select', options:BASE_ABOGADOS, allowAdd:true },
   { key:'tribunal',          label:'Tribunal' },
-  { key:'fechaCumplimiento', label:'Fecha Cumplimiento', type:'date' },
+  { key:'fechaCumplimiento', label:'Fecha Cumplimiento', type:'date', entregaBadge:'fechaVencimiento' },
 ]
 const S_CONCILIACION = [
   { key:'expediente',        label:'Expediente',        required:true },
@@ -688,7 +690,7 @@ export default function DALView({ user, onDashboard }) {
   }, [])
 
   // Se recalcula con cada captura, así que la franja refleja lo recién registrado
-  const alertas = useMemo(() => loading ? null : alertasLitigio(store), [store, loading, loadError])
+  const alertas = useMemo(() => loading ? null : contarAlertas(asuntosLitigio(store)), [store, loading, loadError])
 
   return (
     <AbogadosCtx.Provider value={{ abogados, addAbogado }}>

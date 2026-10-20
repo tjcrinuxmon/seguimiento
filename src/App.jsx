@@ -10,6 +10,7 @@ import ConveniosView from './components/ConveniosView.jsx'
 import DashboardDAL from './components/tablero/DashboardDAL.jsx'
 import DashboardDCyC from './components/tablero/DashboardDCyC.jsx'
 import { DashboardLitigio, DashboardRecursos } from './components/tablero/DashboardSubdireccion.jsx'
+import { filtroAQuery, queryAFiltro } from './components/tablero/dal.js'
 import LoginPage from './components/LoginPage.jsx'
 import { ssoLogin } from './api.js'
 import { getToken, getUser, setAuth, clearAuth } from './auth.js'
@@ -81,13 +82,17 @@ export default function App() {
   if (!token || !user) return <LoginPage />
 
   const p = permisos(user)
-  // La vista puede traer una subvista: "litigio/dashboard" es el dashboard de esa subdirección.
-  const [base, sub] = vista.split('/')
+  // La vista puede traer una subvista: "litigio/dashboard" es el dashboard de esa subdirección,
+  // y "litigio/dashboard?tipo=emplaz&estatus=vencido" abre su detalle con ese filtro.
+  const [ruta, query] = vista.split('?')
+  const [base, sub] = ruta.split('/')
   const encontrado = buscarRubro(base)
   // Una vista que no existe o a la que el usuario no tiene permiso cae al inicio.
   const vistaFinal = encontrado && p[encontrado.rubro.permiso] ? base : 'inicio'
   const enDashboard = vistaFinal !== 'inicio' && sub === 'dashboard' && !!encontrado.rubro.dashboard
   const verDashboard = () => navigate(`${vistaFinal}/dashboard`)
+  const filtro = queryAFiltro(query)
+  const cambiarFiltro = (f) => navigate(`${vistaFinal}/dashboard${f ? '?' + filtroAQuery(f) : ''}`)
   const volver = () => navigate(vistaFinal)
 
   return (
@@ -106,10 +111,10 @@ export default function App() {
             <div className="flex-1 min-h-0">
               {vistaFinal === 'dal-dashboard' && <DashboardDAL onNavigate={navigate} />}
               {vistaFinal === 'litigio' && (enDashboard
-                ? <DashboardLitigio onVolver={volver} />
+                ? <DashboardLitigio filtro={filtro} onFiltro={cambiarFiltro} onVolver={volver} />
                 : <DALView user={user} onDashboard={verDashboard} />)}
               {vistaFinal === 'recursos' && (enDashboard
-                ? <DashboardRecursos onVolver={volver} />
+                ? <DashboardRecursos filtro={filtro} onFiltro={cambiarFiltro} onVolver={volver} />
                 : <RecursosView user={user} onDashboard={verDashboard} />)}
               {vistaFinal === 'dcyc-dashboard' && <DashboardDCyC />}
               {vistaFinal === 'convenios' && <ConveniosView user={user} />}

@@ -9,7 +9,7 @@ import Inhabiles from './Inhabiles.jsx'
 import Abogados from './Abogados.jsx'
 import Numeracion from './Numeracion.jsx'
 import { FranjaAlertas } from '../components/tablero/Tablero.jsx'
-import { UMBRAL_DIAS, calcularRecursos } from '../components/tablero/dal.js'
+import { UMBRAL_DIAS, alertas as contarAlertas, asuntosRecursos } from '../components/tablero/dal.js'
 
 const DET = Object.fromEntries(DETERMINACIONES.map(d => [d.valor, d.label]))
 const VISTA_KEY = 'seguimiento_rc_vista'
@@ -63,7 +63,7 @@ export default function RecursosView({ user, onDashboard }) {
   }, [filas, q, filtro, etapaFiltro])
 
   // Mismo conteo que el dashboard: plazos de la DEAJ vencidos y por vencer
-  const alertas = useMemo(() => expedientes && calcularRecursos(expedientes, inhabiles), [expedientes, inhabiles])
+  const alertas = useMemo(() => expedientes && contarAlertas(asuntosRecursos(expedientes, inhabiles)), [expedientes, inhabiles])
 
   if (abierto) {
     return (
