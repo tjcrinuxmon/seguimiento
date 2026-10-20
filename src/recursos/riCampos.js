@@ -10,7 +10,9 @@
 
 export const ESTATUS_RI = ['', 'EN TRÁMITE', 'CONCLUIDO']
 const estatus = { key: 'estatus', label: 'Estatus', type: 'select', options: ESTATUS_RI }
-const abogado = (label = 'Abogado') => ({ key: 'abogado', label, type: 'select', allowAdd: true })
+// Abogados: del catálogo de RI-Consultas (botón "Abogados"); los dados de baja no se ofrecen,
+// pero sus registros conservan el nombre.
+const abogado = (label = 'Abogado') => ({ key: 'abogado', label, type: 'select', catalogo: true })
 const notas = { key: 'notasImportacion', label: 'Notas de la importación', type: 'textarea', wide: true, formOnly: true }
 
 export const DIRECCIONES_RI = ['', 'DEA', 'DEAJ', 'DECEYEC', 'DEOE', 'DEPPP', 'DERFE', 'DESPEN', 'FISCALIZACIÓN', 'UTCE', "VINC. OPL'S"]
@@ -42,10 +44,10 @@ export const SECCIONES_RI = [
     estatus,
     notas,
   ] },
-  { key: 'transparencia', label: 'Transparencia', titulo: 'Consultas de transparencia', tabla: ['informacion', 'abogado', 'fechaVencimiento', 'fechaAtencion', 'estatus'], campos: [
-    { key: 'numero', label: 'Número de consulta' },
-    abogado(),
+  { key: 'transparencia', label: 'Transparencia', titulo: 'Consultas de transparencia', tabla: ['numero', 'informacion', 'abogado', 'fechaVencimiento', 'fechaAtencion', 'estatus'], campos: [
+    { key: 'numero', label: 'Número de solicitud' },
     { key: 'informacion', label: 'Información requerida', type: 'textarea', wide: true },
+    abogado(),
     { key: 'fechaRecepcion', label: 'Fecha de recepción', type: 'date' },
     { key: 'fechaVencimiento', label: 'Fecha de vencimiento', type: 'date' },
     { key: 'fechaAtencion', label: 'Fecha de atención', type: 'date', entregaBadge: 'fechaVencimiento' },

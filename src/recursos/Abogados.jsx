@@ -61,7 +61,7 @@ export default function Abogados({ subdireccion, abogados, puedeEditar, onCambio
           <h2 id="abogados-titulo" className="text-sm font-bold text-ine-text">Abogados</h2>
           <p className="text-xs text-ine-muted mt-0.5">
             {puedeEditar
-              ? 'Un cambio de nombre se refleja en todos sus expedientes. Dar de baja no borra su historial.'
+              ? 'Un cambio de nombre se refleja en todos sus asuntos. Dar de baja no quita sus asuntos: solo deja de aparecer para asignar nuevos.'
               : 'Solo un administrador puede modificar esta lista.'}
           </p>
         </div>

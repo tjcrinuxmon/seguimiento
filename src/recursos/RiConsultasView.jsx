@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { createRicRecord, updateRicRecord, deleteRicRecord } from '../api.js'
+import { createRicRecord, updateRicRecord, deleteRicRecord, getAbogados } from '../api.js'
 import { SectionView, AbogadosCtx } from '../components/DALView.jsx'
 import { SECCIONES_RI } from './riCampos.js'
 import { cargarRi } from '../components/tablero/dal.js'
+import Abogados from './Abogados.jsx'
 
 const RIC_API = { crear: createRicRecord, actualizar: updateRicRecord, eliminar: deleteRicRecord }
 const PESTANA_KEY = 'seguimiento_ri_pestana'
@@ -13,11 +14,14 @@ const leerPestana = () => {
 
 // RI-Consultas: una pestaña por catálogo (los que antes eran hojas del Excel JDRYC). Avisa a
 // la subdirección cada vez que cambian los registros (`onDatos`), para su franja de alertas.
+// Los abogados salen del catálogo de RI-Consultas (botón "Abogados"): solo los activos se
+// ofrecen para asignar; dar de baja a alguien no cambia sus asuntos.
 export default function RiConsultasView({ user, onDatos }) {
   const [activa, setActiva] = useState(leerPestana)
   const [store, setStore] = useState(null)
   const [error, setError] = useState(null)
-  const [extra, setExtra] = useState([])      // abogados agregados en esta sesión
+  const [catalogo, setCatalogo] = useState([])
+  const [verAbogados, setVerAbogados] = useState(false)
 
   const cambiar = (k) => { setActiva(k); try { localStorage.setItem(PESTANA_KEY, k) } catch {} }
 
@@ -25,25 +29,32 @@ export default function RiConsultasView({ user, onDatos }) {
     setError(null)
     cargarRi().then(setStore).catch(e => setError(e?.response?.data?.error || e.message))
   }, [])
+  // Al cambiar un nombre en el catálogo, el servidor lo corrige en los registros: se recargan
+  const cargarCatalogo = useCallback(() => getAbogados('ri').then(setCatalogo).catch(() => {}), [])
+  useEffect(() => { cargarCatalogo() }, [cargarCatalogo])
+  const cambioCatalogo = () => { cargarCatalogo(); cargar() }
   useEffect(() => { cargar() }, [cargar])
   useEffect(() => { if (store) onDatos?.(store) }, [store, onDatos])
 
-  // Abogados: los que ya aparecen en los registros más los que se agreguen
-  const abogados = useMemo(() => {
-    const nombres = new Set(extra)
-    for (const lista of Object.values(store || {})) for (const r of lista) {
-      for (const n of String(r.abogado || '').split('/')) if (n.trim()) nombres.add(n.trim())
-    }
-    return ['', ...[...nombres].sort((a, b) => a.localeCompare(b))]
-  }, [store, extra])
-  const addAbogado = useCallback((n) => setExtra(xs => [...xs, n]), [])
+  const abogados = useMemo(() => ['', ...catalogo.filter(a => a.activo).map(a => a.nombre)], [catalogo])
 
   const seccion = SECCIONES_RI.find(s => s.key === activa)
   // En la tabla solo las columnas de `tabla`; el resto, en el formulario y el Excel
   const campos = useMemo(() => seccion.campos.map(c => ({ ...c, formOnly: !seccion.tabla.includes(c.key) })), [seccion])
 
   return (
-    <AbogadosCtx.Provider value={{ abogados, addAbogado }}>
+    <AbogadosCtx.Provider value={{ abogados }}>
+      <div className="flex justify-end mb-3">
+        <button type="button" className="btn-outline" style={{ fontSize: 13 }} onClick={() => setVerAbogados(v => !v)}>
+          Abogados
+        </button>
+      </div>
+      {verAbogados && (
+        <div className="mb-4">
+          <Abogados subdireccion="ri" abogados={catalogo} puedeEditar={user?.role === 'admin'}
+            onCambio={cambioCatalogo} onCerrar={() => setVerAbogados(false)} />
+        </div>
+      )}
       <div className="rounded-[10px] overflow-hidden" style={{ border: '1px solid #E3DFDA', boxShadow: '0 2px 8px rgba(0,0,0,.07)' }}>
         <nav className="flex items-center gap-0.5 px-3 py-1.5 overflow-x-auto bg-white" style={{ borderBottom: '1px solid #E3DFDA', scrollbarWidth: 'none' }}
           aria-label="Catálogos de RI-Consultas">

@@ -17,6 +17,7 @@ import { existsSync } from 'fs'
 import { resolve } from 'path'
 import * as J from './jdryc.js'
 import { SECCIONES_RI } from '../src/recursos/riCampos.js'
+import { sincronizarAbogadosRi } from './abogados-ri.js'
 
 const require = createRequire(import.meta.url)
 const XLSX = require('xlsx')
@@ -207,6 +208,10 @@ let bien = true
 for (const s of registros) {
   const n = db.prepare('SELECT COUNT(*) AS n FROM ric_registros WHERE section = ?').get(s.seccion).n
   if (n !== s.filas.length) { bien = false; console.error(`✗ ${s.seccion}: se esperaban ${s.filas.length} y hay ${n}`) }
+}
+if (bien) {
+  const { renombrados, agregados } = sincronizarAbogadosRi(db)
+  console.log(`\nAbogados: ${renombrados} registros con el nombre completo del catálogo; agregados como inactivos: ${agregados.join(', ') || 'ninguno'}.`)
 }
 console.log(bien ? `\n✅ Importados ${registros.reduce((t, s) => t + s.filas.length, 0)} registros a RI-Consultas.` : '\n✗ Los conteos no cuadran; revisa.')
 process.exit(bien ? 0 : 1)

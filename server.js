@@ -339,7 +339,22 @@ app.delete('/api/ric/:section/:id', exigir('recursos'), seccionRic, (req, res) =
 
 // ─── Catálogo de abogados por subdirección ────────────────────────────────────
 // Lo consultan quienes ven la subdirección; solo un administrador lo modifica.
-const SUBDIRECCIONES_ABOGADOS = { recursos: 'recursos' }   // subdirección → permiso que la ve
+const SUBDIRECCIONES_ABOGADOS = { recursos: 'recursos', ri: 'recursos' }   // subdirección → permiso que la ve
+
+// RI-Consultas guarda el nombre del abogado (no el id): al corregir un nombre en el catálogo se
+// corrige en sus registros, también en los compartidos ("A/B").
+function renombrarEnRi(viejo, nuevo) {
+  const upd = db.prepare('UPDATE ric_registros SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  db.transaction(() => {
+    for (const r of db.prepare('SELECT id, data FROM ric_registros').all()) {
+      const d = JSON.parse(r.data)
+      const nombres = String(d.abogado || '').split('/').map(x => x.trim())
+      if (!nombres.includes(viejo)) continue
+      d.abogado = nombres.map(n => (n === viejo ? nuevo : n)).join('/')
+      upd.run(JSON.stringify(d), r.id)
+    }
+  })()
+}
 
 app.get('/api/abogados', (req, res) => {
   const sub = req.query.subdireccion
@@ -365,6 +380,7 @@ app.put('/api/abogados/:id', (req, res) => {
   if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' })
   const activo = req.body?.activo !== undefined ? (req.body.activo ? 1 : 0) : actual.activo
   db.prepare('UPDATE abogados SET nombre = ?, activo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nombre, activo, actual.id)
+  if (actual.subdireccion === 'ri' && nombre !== actual.nombre) renombrarEnRi(actual.nombre, nombre)
   res.json(db.prepare('SELECT id, nombre, activo FROM abogados WHERE id = ?').get(actual.id))
 })
 

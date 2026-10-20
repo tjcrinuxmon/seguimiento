@@ -100,7 +100,9 @@ function FieldInput({ schema, value, onChange }) {
     </label>
   )
   if (type === 'select') {
-    const base = (schema.allowAdd && abogadosCtx) ? abogadosCtx.abogados : (options || [])
+    // allowAdd: lista con "+ Agregar abogado…" (Litigio); catalogo: lista de un catálogo que se
+    // administra aparte (RI-Consultas, botón "Abogados")
+    const base = ((schema.allowAdd || schema.catalogo) && abogadosCtx) ? abogadosCtx.abogados : (options || [])
     // Un valor guardado que ya no está en la lista (p. ej. importado) se conserva como opción
     const opts = value && !base.includes(value) ? [...base, value] : base
     if (adding) return (

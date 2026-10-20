@@ -142,6 +142,12 @@ if (!db.prepare("SELECT COUNT(*) AS n FROM abogados WHERE subdireccion = 'recurs
   for (const n of ['Silvia Torres Pacheco', 'Noemi Nycole Fidencio Mariano', 'Rosario Ortega Urrutia', 'Adalberto de Jesus Romero Villa']) ins.run(n)
 }
 
+// RI-Consultas tiene su propio catálogo (subdireccion = 'ri'); sus registros guardan el nombre.
+if (!db.prepare("SELECT COUNT(*) AS n FROM abogados WHERE subdireccion = 'ri'").get().n) {
+  const ins = db.prepare("INSERT INTO abogados (subdireccion, nombre) VALUES ('ri', ?)")
+  for (const n of ['Jocelyn Rodríguez Hernández', 'América Alexandra Aguillón González', 'Airamse Saile Domínguez Javier']) ins.run(n)
+}
+
 // Días inhábiles (además de sábados y domingos) para contar plazos en días hábiles.
 db.exec(`
   CREATE TABLE IF NOT EXISTS dias_inhabiles (
