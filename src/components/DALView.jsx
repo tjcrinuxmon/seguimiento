@@ -225,7 +225,46 @@ function RecordForm({ title, schemas, initial, onSave, onClose, saving }) {
   )
 }
 
-function DataTable({ schemas, rows, onEdit, onDelete, canEdit, canDelete }) {
+// Detalle de un registro: todos sus campos (también los que no salen en la tabla), con
+// Editar y Cerrar. Se abre al hacer clic en un renglón.
+function DetalleRegistro({ title, schemas, row, canEdit, onEdit, onClose }) {
+  const valor = (c) => {
+    const v = row[c.key]
+    if (c.entregaBadge) return <EntregaBadge entrega={v} venc={row[c.entregaBadge]} />
+    if (c.isVenc) return <VBadge ds={v} />
+    if (c.type === 'checkbox') return v ? 'Sí' : 'No'
+    if (v === undefined || v === null || v === '') return <span style={{ color:'#B2B2B2' }}>—</span>
+    if (c.type === 'date') return fmtDate(v)
+    return <span style={{ whiteSpace:'pre-wrap',overflowWrap:'anywhere' }}>{String(v)}</span>
+  }
+  // Primero los campos con algo capturado; los vacíos al final, para que lo importante se vea
+  const llenos = schemas.filter(c => !c.tableOnly && row[c.key] !== undefined && row[c.key] !== null && row[c.key] !== '')
+  const vacios = schemas.filter(c => !c.tableOnly && !llenos.includes(c))
+  const Campo = ({ c }) => (
+    <div style={c.wide || c.type === 'textarea' ? { gridColumn:'1 / -1' } : {}}>
+      <dt style={{ fontSize:11,fontWeight:700,color:'#828A91',marginBottom:3 }}>{c.label}</dt>
+      <dd style={{ fontSize:13,color:'#454247',margin:0 }}>{valor(c)}</dd>
+    </div>
+  )
+  return (
+    <Modal title={title} onClose={onClose}>
+      <dl style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:'14px 20px',margin:0 }}>
+        {llenos.map(c => <Campo key={c.key} c={c} />)}
+      </dl>
+      {vacios.length > 0 && (
+        <p style={{ fontSize:12,color:'#828A91',marginTop:16 }}>
+          Sin capturar: {vacios.map(c => c.label).join(', ')}.
+        </p>
+      )}
+      <div style={{ display:'flex',gap:12,justifyContent:'flex-end',marginTop:20,paddingTop:16,borderTop:'1px solid #E3DFDA' }}>
+        <button className="btn-outline" onClick={onClose}>Cerrar</button>
+        {canEdit && <button className="btn-ine" onClick={onEdit}>Editar</button>}
+      </div>
+    </Modal>
+  )
+}
+
+function DataTable({ schemas, rows, onView, onEdit, onDelete, canEdit, canDelete }) {
   const cols = schemas.filter(s => !s.formOnly)
   return (
     <div style={{ overflowX:'auto' }}>
@@ -249,7 +288,9 @@ function DataTable({ schemas, rows, onEdit, onDelete, canEdit, canDelete }) {
             </td></tr>
           )}
           {rows.map((row, i) => (
-            <tr key={row.id||i} style={{ borderBottom:'1px solid #EDEAE6' }}
+            <tr key={row.id||i} style={{ borderBottom:'1px solid #EDEAE6',cursor:'pointer' }}
+              onClick={() => onView(row)} tabIndex={0} title="Ver el registro completo"
+              onKeyDown={e => { if (e.key === 'Enter' && e.target === e.currentTarget) onView(row) }}
               onMouseEnter={e => e.currentTarget.style.background='#F7F5F3'}
               onMouseLeave={e => e.currentTarget.style.background=''}>
               {cols.map(c => (
@@ -267,7 +308,7 @@ function DataTable({ schemas, rows, onEdit, onDelete, canEdit, canDelete }) {
                       </span>}
                 </td>
               ))}
-              <td style={{ padding:'10px 12px' }}>
+              <td style={{ padding:'10px 12px' }} onClick={e => e.stopPropagation()}>
                 <div style={{ display:'flex',gap:4 }}>
                   {canEdit && (
                     <button onClick={() => onEdit(row)} title="Editar"
@@ -302,6 +343,7 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
   const [showForm,   setShowForm]   = useState(false)
   const [editing,    setEditing]    = useState(null)
   const [deleting,   setDeleting]   = useState(null)
+  const [viendo,     setViendo]     = useState(null)
   const [search,     setSearch]     = useState('')
   const [saving,     setSaving]     = useState(false)
   const [page,       setPage]       = useState(0)
@@ -398,6 +440,7 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
           </button>
         </div>
         <DataTable schemas={schemas} rows={paginated}
+          onView={r => setViendo(r)}
           onEdit={r => { setEditing(r); setShowForm(true) }}
           onDelete={r => setDeleting(r)}
           canEdit={canEdit} canDelete={canDelete} />
@@ -445,6 +488,11 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
           saving={saving} />
       )}
       {deleting && <ConfirmDelete onConfirm={handleDelete} onCancel={() => setDeleting(null)} />}
+      {viendo && !showForm && (
+        <DetalleRegistro title={title} schemas={schemas} row={viendo} canEdit={canEdit}
+          onEdit={() => { setEditing(viendo); setViendo(null); setShowForm(true) }}
+          onClose={() => setViendo(null)} />
+      )}
     </div>
   )
 }
