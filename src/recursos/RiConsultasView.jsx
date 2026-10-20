@@ -39,6 +39,8 @@ export default function RiConsultasView({ user, onDatos }) {
   const addAbogado = useCallback((n) => setExtra(xs => [...xs, n]), [])
 
   const seccion = SECCIONES_RI.find(s => s.key === activa)
+  // En la tabla solo las columnas de `tabla`; el resto, en el formulario y el Excel
+  const campos = useMemo(() => seccion.campos.map(c => ({ ...c, formOnly: !seccion.tabla.includes(c.key) })), [seccion])
 
   return (
     <AbogadosCtx.Provider value={{ abogados, addAbogado }}>
@@ -71,7 +73,7 @@ export default function RiConsultasView({ user, onDatos }) {
               key={activa}
               title={seccion.titulo}
               section={activa}
-              schemas={seccion.campos}
+              schemas={campos}
               records={store[activa]}
               onUpdate={(records) => setStore(s => ({ ...s, [activa]: records }))}
               user={user}

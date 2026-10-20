@@ -251,7 +251,8 @@ function DataTable({ schemas, rows, onEdit, onDelete, canEdit, canDelete }) {
               onMouseEnter={e => e.currentTarget.style.background='#F7F5F3'}
               onMouseLeave={e => e.currentTarget.style.background=''}>
               {cols.map(c => (
-                <td key={c.key} style={{ padding:'10px 12px',whiteSpace:'nowrap',maxWidth:200,overflow:'hidden',textOverflow:'ellipsis' }}>
+                <td key={c.key} title={typeof row[c.key] === 'string' && row[c.key].length > 25 ? row[c.key] : undefined}
+                  style={{ padding:'10px 12px',whiteSpace:'nowrap',maxWidth:c.wide ? 320 : 200,overflow:'hidden',textOverflow:'ellipsis' }}>
                   {c.entregaBadge
                     ? <EntregaBadge entrega={row[c.key]} venc={row[c.entregaBadge]} />
                     : c.isVenc

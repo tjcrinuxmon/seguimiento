@@ -5,6 +5,8 @@
 // Campos: key, label, type ('date' | 'select' | 'textarea' | 'number'), wide (ocupa el ancho
 // del formulario), formOnly (no sale en la tabla, solo en el formulario), entregaBadge (campo de
 // atención: verde si fue a tiempo, rojo si fue después del vencimiento indicado).
+// `tabla`: las columnas que se ven en la tabla (pocas, las que sirven para ubicar y dar
+// seguimiento); los demás campos están en el formulario y en el Excel.
 
 export const ESTATUS_RI = ['', 'EN TRÁMITE', 'CONCLUIDO']
 const estatus = { key: 'estatus', label: 'Estatus', type: 'select', options: ESTATUS_RI }
@@ -16,7 +18,7 @@ export const MODALIDADES_RI = ['', 'Electrónico', 'Físico', 'Híbrido']
 export const PARTES_RI = ['', 'Infractor', 'Denunciante', 'Denunciante / Infractor', 'N/A']
 
 export const SECCIONES_RI = [
-  { key: 'juridico', label: 'Jurídico-laboral', titulo: 'Consultas jurídico-laborales', campos: [
+  { key: 'juridico', label: 'Jurídico-laboral', titulo: 'Consultas jurídico-laborales', tabla: ['idSai', 'asunto', 'abogado', 'fechaAtencion', 'estatus'], campos: [
     { key: 'numero', label: 'Número de consulta', formOnly: true },
     { key: 'idSai', label: 'ID SAI' },
     { key: 'asunto', label: 'Asunto', type: 'textarea', wide: true },
@@ -28,7 +30,7 @@ export const SECCIONES_RI = [
     { key: 'observaciones', label: 'Observaciones', type: 'textarea', wide: true, formOnly: true },
     notas,
   ] },
-  { key: 'rescisiones', label: 'Rescisiones', titulo: 'Consultas de rescisiones', campos: [
+  { key: 'rescisiones', label: 'Rescisiones', titulo: 'Consultas de rescisiones', tabla: ['asunto', 'abogado', 'fechaRecepcion', 'fechaDesahogo', 'estatus'], campos: [
     { key: 'numero', label: 'Número de consulta' },
     { key: 'idSai', label: 'ID SAI' },
     { key: 'asunto', label: 'Asunto', type: 'textarea', wide: true },
@@ -40,7 +42,7 @@ export const SECCIONES_RI = [
     estatus,
     notas,
   ] },
-  { key: 'transparencia', label: 'Transparencia', titulo: 'Consultas de transparencia', campos: [
+  { key: 'transparencia', label: 'Transparencia', titulo: 'Consultas de transparencia', tabla: ['informacion', 'abogado', 'fechaVencimiento', 'fechaAtencion', 'estatus'], campos: [
     { key: 'numero', label: 'Número de consulta' },
     abogado(),
     { key: 'informacion', label: 'Información requerida', type: 'textarea', wide: true },
@@ -51,7 +53,7 @@ export const SECCIONES_RI = [
     estatus,
     notas,
   ] },
-  { key: 'ctrl', label: 'CTRL', titulo: 'Consultas CTRL', campos: [
+  { key: 'ctrl', label: 'CTRL', titulo: 'Consultas CTRL', tabla: ['idSai', 'abogado', 'fechaVencimiento', 'fechaAtencion', 'estatus'], campos: [
     { key: 'idSai', label: 'ID SAI' },
     { key: 'oficioConsulta', label: 'Oficio de consulta' },
     { key: 'numeroPersonas', label: 'Número de personas', type: 'number' },
@@ -64,7 +66,7 @@ export const SECCIONES_RI = [
     estatus,
     notas,
   ] },
-  { key: 'requerimientos', label: 'Requerimientos', titulo: 'Requerimientos TEPJF y OIC', campos: [
+  { key: 'requerimientos', label: 'Requerimientos', titulo: 'Requerimientos TEPJF y OIC', tabla: ['requerimiento', 'abogado', 'fechaVencimiento', 'fechaAtencion', 'estatus'], campos: [
     { key: 'expediente', label: 'Expediente' },
     { key: 'requerimiento', label: 'Requerimiento', type: 'textarea', wide: true },
     { key: 'fechaNotificacion', label: 'Fecha de notificación', type: 'date' },
@@ -78,7 +80,7 @@ export const SECCIONES_RI = [
     estatus,
     notas,
   ] },
-  { key: 'turno_ri', label: 'Turno RI', titulo: 'Turno de recursos de inconformidad (competencia JGE)', campos: [
+  { key: 'turno_ri', label: 'Turno RI', titulo: 'Turno de recursos de inconformidad (competencia JGE)', tabla: ['expediente', 'abogado', 'venceInstruccion', 'venceAprobacionJge', 'fechaResolucion'], campos: [
     { key: 'expediente', label: 'Expediente' },
     abogado('Abogado responsable'),
     { key: 'modalidad', label: 'Modalidad de presentación', type: 'select', options: MODALIDADES_RI },
@@ -106,7 +108,7 @@ export const SECCIONES_RI = [
     { key: 'criterio', label: 'Criterio', type: 'textarea', wide: true, formOnly: true },
     notas,
   ] },
-  { key: 'protocolo', label: 'Protocolo', titulo: 'Protocolo', campos: [
+  { key: 'protocolo', label: 'Protocolo', titulo: 'Protocolo', tabla: ['expediente', 'personas', 'opinion', 'fechaOpinion'], campos: [
     { key: 'expediente', label: 'Expediente' },
     { key: 'personas', label: 'Persona(s) funcionaria(s) involucrada(s)', type: 'textarea', wide: true },
     { key: 'regimen', label: 'Régimen laboral / contractual' },
