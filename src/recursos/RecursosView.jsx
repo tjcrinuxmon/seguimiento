@@ -13,6 +13,15 @@ const DET = Object.fromEntries(DETERMINACIONES.map(d => [d.valor, d.label]))
 const VISTA_KEY = 'seguimiento_rc_vista'
 const leerVista = () => { try { return localStorage.getItem(VISTA_KEY) || 'tarjetas' } catch { return 'tarjetas' } }
 
+// División de los trámites según la determinación
+export const GRUPOS_PLS = [
+  { clave: 'investigacion', label: 'Investigación', nota: 'Sin determinación', es: (x) => !x.determinacion },
+  { clave: 'sustanciacion', label: 'Sustanciación', nota: 'Con inicio del procedimiento', es: (x) => x.determinacion === 'inicio' },
+  { clave: 'concluidos',    label: 'Concluidos',    nota: 'No inicio, extinción, sobreseimiento o archivo', es: (x) => !!x.determinacion && x.determinacion !== 'inicio' },
+]
+const GRUPO_KEY = 'seguimiento_rc_grupo'
+const leerGrupo = () => { try { const g = localStorage.getItem(GRUPO_KEY); return GRUPOS_PLS.some(x => x.clave === g) ? g : 'investigacion' } catch { return 'investigacion' } }
+
 const normalizar = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
 // Subdirección de Recursos y Consultas → PLS (Procedimiento Laboral Sancionador): lista de
@@ -32,6 +41,8 @@ export default function RecursosView({ user, onDatos }) {
   const [etapaFiltro, setEtapaFiltro] = useState('')
   const [vista, setVista] = useState(leerVista)      // 'tarjetas' | 'tabla' (se recuerda en este navegador)
   const cambiarVista = (v) => { setVista(v); try { localStorage.setItem(VISTA_KEY, v) } catch {} }
+  const [grupo, setGrupo] = useState(leerGrupo)      // investigación | sustanciación | concluidos (se recuerda)
+  const cambiarGrupo = (g) => { setGrupo(g); setEtapaFiltro(''); try { localStorage.setItem(GRUPO_KEY, g) } catch {} }
 
   const cargar = useCallback(async () => {
     setError(null)
@@ -57,9 +68,10 @@ export default function RecursosView({ user, onDatos }) {
     return filas
       .filter(x => !t || normalizar([x.clave, x.abogado, x.denunciante_nombre, x.denunciado_nombre, x.denunciado_adscripcion, x.conducta].join(' ')).includes(t))
       .filter(x => !filtro || (filtro === 'vencido' ? x.vencidos > 0 : x.proximo?.estado === 'por_vencer'))
+      .filter(x => GRUPOS_PLS.find(g => g.clave === grupo).es(x))
       .filter(x => !etapaFiltro || x.etapa.clave === etapaFiltro)
       .sort((a, b) => (a.proximo?.dias ?? 1e9) - (b.proximo?.dias ?? 1e9))
-  }, [filas, q, filtro, etapaFiltro])
+  }, [filas, q, filtro, etapaFiltro, grupo])
 
   useEffect(() => { if (expedientes) onDatos?.({ expedientes, inhabiles }) }, [expedientes, inhabiles, onDatos])
 
@@ -118,6 +130,25 @@ export default function RecursosView({ user, onDatos }) {
         </div>
       )}
 
+      {/* División de los trámites */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3" role="tablist" aria-label="División de los trámites">
+        {GRUPOS_PLS.map(g => {
+          const on = g.clave === grupo
+          const n = filas.filter(g.es).length
+          return (
+            <button key={g.clave} type="button" role="tab" aria-selected={on} onClick={() => cambiarGrupo(g.clave)}
+              className="rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-left transition-colors"
+              style={on ? { background: '#454247', color: '#fff', border: '1.5px solid #454247' } : { background: '#fff', color: '#454247', border: '1.5px solid #E3DFDA' }}>
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-bold">{g.label}</span>
+                <span className="text-xl font-black leading-none">{expedientes ? n : '…'}</span>
+              </span>
+              <span className="hidden sm:block text-xs mt-1" style={{ color: on ? 'rgba(255,255,255,.75)' : '#828A91' }}>{g.nota}</span>
+            </button>
+          )
+        })}
+      </div>
+
       <div className="ine-card p-3 flex flex-wrap gap-2">
         <input type="search" className="ine-input flex-1 min-w-[200px]" placeholder="Buscar expediente, abogado, denunciante, denunciado o adscripción…"
           aria-label="Buscar" value={q} onChange={e => setQ(e.target.value)} />
@@ -147,7 +178,9 @@ export default function RecursosView({ user, onDatos }) {
       {expedientes && visibles.length === 0 && (
         <div className="ine-card p-8 text-center">
           <p className="text-sm text-ine-text font-semibold">
-            {filas.length ? 'Ningún expediente coincide con la búsqueda.' : 'Aún no hay expedientes.'}
+            {!filas.length ? 'Aún no hay expedientes.'
+              : !filas.some(GRUPOS_PLS.find(g => g.clave === grupo).es) ? `No hay expedientes en ${GRUPOS_PLS.find(g => g.clave === grupo).label.toLowerCase()}.`
+              : 'Ningún expediente coincide con la búsqueda.'}
           </p>
           {!filas.length && <p className="text-xs text-ine-muted mt-1">Crea el primero con «Nuevo expediente».</p>}
         </div>
