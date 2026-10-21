@@ -168,7 +168,7 @@ const PASOS_SUSTANCIACION = [
 export function etapaActual(e) {
   const tiene = {
     recepcion:     e.fecha_recepcion_deaj || e.fecha_recepcion_dal,
-    radicacion:    e.fecha_acuerdo_radicacion || e.oficio_notificacion_radicacion,
+    radicacion:    e.fecha_acuerdo_radicacion || e.fecha_notificacion_radicacion || e.oficio_notificacion_radicacion,
     investigacion: e.fecha_acuerdo_investigacion || e.requerimientos?.length,
     determinacion: e.determinacion || e.fecha_acuerdo_determinacion,
     sustanciacion: PASOS_SUSTANCIACION.some(p => p.tiene(e)),

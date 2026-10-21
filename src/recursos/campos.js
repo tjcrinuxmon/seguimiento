@@ -55,7 +55,7 @@ export const SECCIONES = [
     etapa: 'radicacion', titulo: 'Radicación',
     campos: [
       { k: 'fecha_acuerdo_radicacion', label: 'Acuerdo de recepción y radicación', tipo: 'fecha' },
-      { k: 'oficio_notificacion_radicacion', label: 'Oficio de notificación', tipo: 'texto' },
+      { k: 'fecha_notificacion_radicacion', label: 'Notificación', tipo: 'fecha' },
     ],
   },
   {

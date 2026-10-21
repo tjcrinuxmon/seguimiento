@@ -63,7 +63,7 @@ function perfil(i) {
     protocolo: i % 3 === 1 ? 'Protocolo para prevenir, atender y sancionar el hostigamiento y acoso sexual' : '',
     medidas_cautelares: i % 4 === 1 ? 'Cambio temporal de adscripción de la persona denunciada.' : '',
   }
-  const recepcion = (dias) => ({ fecha_recepcion_deaj: d(dias), fecha_recepcion_dal: d(dias + 2), fecha_acuerdo_radicacion: d(dias + 7), oficio_notificacion_radicacion: oficio(i * 10 + 1) })
+  const recepcion = (dias) => ({ fecha_recepcion_deaj: d(dias), fecha_recepcion_dal: d(dias + 2), fecha_acuerdo_radicacion: d(dias + 7), fecha_notificacion_radicacion: d(dias + 9) })
   const investigacion = (dias) => ({
     fecha_acuerdo_investigacion: d(dias + 15),
     requerimientos: [
