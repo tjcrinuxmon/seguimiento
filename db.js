@@ -28,6 +28,8 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `)
+// Subdirección del portal (subdireccion_tareas): un Subdirector/a solo ve la suya
+try { db.exec('ALTER TABLE users ADD COLUMN subdireccion TEXT') } catch (_) {}
 
 // Contratos y Convenios → Convenios
 db.exec(`

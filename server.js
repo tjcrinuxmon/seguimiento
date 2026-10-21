@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import db from './db.js'
+import { permisos } from './src/rubros.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -31,15 +32,8 @@ app.use(cors({
 app.use(express.json({ limit: '2mb' }))
 
 // ─── Permisos ─────────────────────────────────────────────────────────────────
-// Los roles y direcciones vienen del portal (rol_tareas / direccion_tareas).
-export const permisos = (u) => ({
-  // Asuntos Laborales → Litigio (y su dashboard)
-  litigio:   u?.role === 'admin' || u?.role === 'ejecutiva' || u?.direccion === 'asuntos_laborales',
-  // Asuntos Laborales → Recursos y Consultas (por ahora, mismas personas que Litigio)
-  recursos:  u?.role === 'admin' || u?.role === 'ejecutiva' || u?.direccion === 'asuntos_laborales',
-  // Contratos y Convenios → Convenios (y su reporte): solo esa dirección y administradores
-  convenios: u?.role === 'admin' || u?.direccion === 'contratos_convenios',
-})
+// La misma regla que el menú (src/rubros.js): rol, dirección y subdirección del portal.
+export { permisos }
 
 const exigir = (rubro) => (req, res, next) =>
   permisos(req.user)[rubro] ? next() : res.status(403).json({ error: 'Sin acceso a este rubro' })
@@ -53,7 +47,7 @@ const ssoLimiter = rateLimit({
   message: { error: 'Demasiados intentos. Espera 15 minutos.' },
 })
 
-const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, role: u.role, direccion: u.direccion })
+const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, role: u.role, direccion: u.direccion, subdireccion: u.subdireccion || null })
 
 app.post('/api/auth/sso', ssoLimiter, (req, res) => {
   const { sso_token } = req.body || {}
@@ -69,11 +63,11 @@ app.post('/api/auth/sso', ssoLimiter, (req, res) => {
 
   const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email)
   if (!existing) {
-    db.prepare('INSERT INTO users (username, email, name, role, direccion, puesto) VALUES (?,?,?,?,?,?)')
-      .run(email, email, payload.name || email, payload.role || 'director', payload.direccion || null, payload.puesto || null)
+    db.prepare('INSERT INTO users (username, email, name, role, direccion, subdireccion, puesto) VALUES (?,?,?,?,?,?,?)')
+      .run(email, email, payload.name || email, payload.role || 'director', payload.direccion || null, payload.subdireccion || null, payload.puesto || null)
   } else {
-    db.prepare('UPDATE users SET name=?, role=?, direccion=?, puesto=? WHERE id=?')
-      .run(payload.name || existing.name, payload.role || existing.role, payload.direccion || null,
+    db.prepare('UPDATE users SET name=?, role=?, direccion=?, subdireccion=?, puesto=? WHERE id=?')
+      .run(payload.name || existing.name, payload.role || existing.role, payload.direccion || null, payload.subdireccion || null,
            payload.puesto ?? existing.puesto, existing.id)
   }
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email)
