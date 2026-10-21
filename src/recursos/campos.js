@@ -3,7 +3,9 @@
 // La ficha se dibuja a partir de esta lista: para agregar o renombrar un campo basta con
 // cambiarlo aquí (los datos se guardan por su clave `k`).
 //
-// Tipos: texto, numero, fecha, area (texto largo), opcion (con `opciones`).
+// Tipos: texto, numero, fecha, area (texto largo), opcion (con `opciones`), casilla (sí/no).
+// `si`: el campo o la lista solo se muestra si la casilla con esa clave está marcada.
+// `implicito` (en una casilla): si nunca se marcó, se toma como marcada cuando ya hay datos.
 // `plazo`: clave del plazo (plazos.js) cuya fecha límite se muestra junto al campo.
 
 // Columnas comunes de un oficio (número, a quién va, síntesis, envío y desahogo)
@@ -14,6 +16,13 @@ const OFICIO = [
   { k: 'fecha_envio',    label: 'Envío',          tipo: 'fecha', ancho: 'sm' },
   { k: 'fecha_desahogo', label: 'Desahogo',       tipo: 'fecha', ancho: 'sm' },
 ]
+
+// Valor de una casilla: lo capturado o, si nunca se marcó, el implícito (hay datos)
+export function valorCasilla(def, e) {
+  return e[def.k] ?? (def.implicito ? def.implicito(e) : false)
+}
+const CASILLAS = {}   // se llena abajo: clave → definición
+export const casillaMarcada = (k, e) => (CASILLAS[k] ? valorCasilla(CASILLAS[k], e) : !!e[k])
 
 export const DETERMINACIONES = [
   { valor: 'inicio',    label: 'Inicio del procedimiento' },
@@ -61,10 +70,13 @@ export const SECCIONES = [
   {
     etapa: 'investigacion', titulo: 'Investigación preliminar',
     campos: [
-      { k: 'fecha_acuerdo_investigacion', label: 'Acuerdo de investigación preliminar', tipo: 'fecha' },
+      { k: 'hay_investigacion', label: 'Hay acuerdo de investigación preliminar', tipo: 'casilla', ancho: 'completo',
+        implicito: (e) => !!(e.fecha_acuerdo_investigacion || e.requerimientos?.length),
+        ayuda: 'No siempre se realiza; si no hay, esta etapa se omite.' },
+      { k: 'fecha_acuerdo_investigacion', label: 'Acuerdo de investigación preliminar', tipo: 'fecha', si: 'hay_investigacion' },
     ],
     listas: [
-      { k: 'requerimientos', titulo: 'Requerimientos', nuevo: 'Agregar requerimiento',
+      { k: 'requerimientos', titulo: 'Requerimientos', nuevo: 'Agregar requerimiento', si: 'hay_investigacion',
         columnas: [...OFICIO, { k: 'desahogo', label: 'Desahogo (resumen)', tipo: 'area', ancho: 'lg' }] },
     ],
   },
@@ -148,3 +160,5 @@ export const SECCIONES = [
     ],
   },
 ]
+
+for (const s of SECCIONES) for (const d of s.campos) if (d.tipo === 'casilla') CASILLAS[d.k] = d

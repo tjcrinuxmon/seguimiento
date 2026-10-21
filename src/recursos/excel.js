@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import { SECCIONES } from './campos.js'
+import { SECCIONES, valorCasilla } from './campos.js'
 import { calcularPlazos, proximoPlazo, etapaActual, expedienteClave, sumarMeses } from './plazos.js'
 
 // Exporta a Excel los expedientes de Recursos y Consultas, completos, en tres hojas:
@@ -12,6 +12,7 @@ const fecha = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? iso.split('-').r
 const ESTADO = { vencido: 'Vencido', por_vencer: 'Por vencer', pendiente: 'Pendiente', en_curso: 'En curso', cumplido: 'Cumplido', concluido: 'Concluido' }
 
 function valor(def, v, abogados) {
+  if (def.tipo === 'casilla') return v === true ? 'Sí' : v === false ? 'No' : ''
   if (v === undefined || v === null || v === '') return ''
   if (def.tipo === 'fecha') return fecha(v)
   if (def.tipo === 'abogado') return abogados.find(a => a.id === Number(v))?.nombre || ''
@@ -52,7 +53,7 @@ export function descargarExcel(expedientes, { abogados = [], inhabiles = new Set
       'Fecha del próximo plazo': fecha(prox?.fecha),
       'Estado del próximo plazo': prox ? ESTADO[prox.estado] : '',
     }
-    for (const c of cols) fila[c.titulo] = valor(c.def, e[c.def.k], abogados)
+    for (const c of cols) fila[c.titulo] = valor(c.def, c.def.tipo === 'casilla' ? valorCasilla(c.def, e) : e[c.def.k], abogados)
     for (const l of listas) fila[`${l.titulo} (núm.)`] = (e[l.k] || []).length
     hojaExp.push(fila)
 

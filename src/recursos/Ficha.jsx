@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createExpedienteRc, updateExpedienteRc, deleteExpedienteRc, getSiguienteRc } from '../api.js'
-import { SECCIONES } from './campos.js'
+import { SECCIONES, valorCasilla, casillaMarcada } from './campos.js'
 import { ETAPAS, calcularPlazos, etapaActual, expedienteClave } from './plazos.js'
 import { EstadoPlazo, fmtFecha } from './ui.jsx'
 
@@ -9,6 +9,16 @@ const ANCHO = { sm: 'sm:col-span-1', md: 'sm:col-span-1', lg: 'sm:col-span-2', c
 function Campo({ def, valor, onChange, plazo, sugerencias, idBase, abogados }) {
   const id = `${idBase}-${def.k}`
   const comun = { id, className: 'ine-input', value: valor ?? '', onChange: e => onChange(e.target.value) }
+  if (def.tipo === 'casilla') return (
+    <div className={ANCHO[def.ancho] || ''}>
+      <label htmlFor={id} className="inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-ine-text">
+        <input id={id} type="checkbox" checked={!!valor} onChange={ev => onChange(ev.target.checked)}
+          style={{ width: 18, height: 18, accentColor: '#454247' }} />
+        {def.label}
+      </label>
+      {def.ayuda && <p className="mt-1 text-xs text-ine-muted">{def.ayuda}</p>}
+    </div>
+  )
   let control
   if (def.tipo === 'area') control = <textarea {...comun} rows={2} style={{ resize: 'vertical' }} />
   else if (def.tipo === 'abogado') control = (
@@ -216,13 +226,13 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
                   </p>
                 </div>
               )}
-              {s.campos.map(c => (
-                <Campo key={c.k} def={c} valor={e[c.k]} onChange={v => set(c.k, v)} idBase="rc"
+              {s.campos.filter(c => !c.si || casillaMarcada(c.si, e)).map(c => (
+                <Campo key={c.k} def={c} valor={c.tipo === 'casilla' ? valorCasilla(c, e) : e[c.k]} onChange={v => set(c.k, v)} idBase="rc"
                   plazo={c.plazo ? plazoDe(c.plazo) : null}
                   abogados={abogados} />
               ))}
             </div>}
-            {(s.listas || []).map(l => (
+            {(s.listas || []).filter(l => !l.si || casillaMarcada(l.si, e)).map(l => (
               <Lista key={l.k} def={l} filas={e[l.k]} onChange={v => set(l.k, v)} idBase="rc"
                 soloLista={s.campos.length === 0 && s.listas.length === 1}
                 plazo={l.plazo ? plazoDe(l.plazo) : null} />

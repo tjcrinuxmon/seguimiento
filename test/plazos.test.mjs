@@ -47,5 +47,8 @@ for (const det of ['no_inicio', 'sobreseimiento', 'extincion', 'archivo']) {
 assert.equal(P.etapaActual({ ...e, determinacion: 'no_inicio' }).concluido, true)
 assert.equal(P.etapaActual({ ...e, determinacion: 'sobreseimiento' }).label, 'Concluido (sobreseimiento)')
 console.log('✓ plazos de Recursos y Consultas')
+// Sin acuerdo de investigación preliminar (casilla desmarcada): la etapa no cuenta
+assert.equal(P.etapaActual({ fecha_recepcion_deaj: '2026-01-05', fecha_acuerdo_investigacion: '2026-01-20' }).clave, 'investigacion')
+assert.equal(P.etapaActual({ fecha_recepcion_deaj: '2026-01-05', fecha_acuerdo_investigacion: '2026-01-20', hay_investigacion: false }).clave, 'recepcion')
 // Archivo: concluye al notificar el acuerdo, como no inicio
 assert.equal(P.etapaActual({ determinacion: 'archivo', fecha_notificacion_determinacion: '2026-10-01' }).label, 'Concluido (archivo)')
