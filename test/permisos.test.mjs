@@ -13,6 +13,9 @@ assert.equal(ve({ role: 'director', direccion: 'contratos_convenios' }), 'contra
 assert.equal(ve({ role: 'subdirector', direccion: 'asuntos_laborales', subdireccion: 'recursos' }), 'recursos')
 assert.equal(ve({ role: 'subdirector', direccion: 'asuntos_laborales', subdireccion: 'litigio' }), 'litigio')
 assert.equal(ve({ role: 'subdirector', direccion: 'contratos_convenios', subdireccion: 'convenios' }), 'convenios')
+// Usuario: igual que Subdirector/a, solo su subdirección
+assert.equal(ve({ role: 'usuario', direccion: 'asuntos_laborales', subdireccion: 'litigio' }), 'litigio')
+assert.equal(ve({ role: 'usuario', direccion: 'contratos_convenios', subdireccion: 'contratos' }), 'contratos')
 // Subdirector/a sin subdirección capturada: como antes, toda su dirección
 assert.equal(ve({ role: 'subdirector', direccion: 'asuntos_laborales' }), 'dal,litigio,recursos')
 // La subdirección solo cuenta para Subdirector/a

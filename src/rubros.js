@@ -9,13 +9,13 @@
 // #DDD4CE, gris medio #828A91, gris claro #C5C9CC y sus matices).
 
 // Quién ve qué. Roles, dirección y subdirección vienen del portal (rol_tareas,
-// direccion_tareas, subdireccion_tareas). Un Subdirector/a con subdirección solo ve la suya
-// (ni la otra ni el dashboard de la dirección); sin subdirección, ve toda su dirección.
+// direccion_tareas, subdireccion_tareas). Un Subdirector/a o Usuario con subdirección solo ve
+// la suya (ni la otra ni el dashboard de la dirección); sin subdirección, ve toda su dirección.
 // server.js usa esta misma función para proteger la API.
 export const permisos = (u) => {
   const admin = u?.role === 'admin'
   const todo = admin || u?.role === 'ejecutiva'
-  const sub = u?.role === 'subdirector' ? (u?.subdireccion || null) : null
+  const sub = ['subdirector', 'usuario'].includes(u?.role) ? (u?.subdireccion || null) : null
   const enDir = (dir) => u?.direccion === dir
   const ve = (dir, s) => enDir(dir) && (!sub || sub === s)
   return {

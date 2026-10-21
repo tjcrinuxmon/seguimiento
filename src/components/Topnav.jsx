@@ -3,7 +3,7 @@ import BrandLogo from './BrandLogo.jsx'
 import Icono from './Icono.jsx'
 import { TONOS } from '../rubros.js'
 
-const ROLE_LABELS = { admin: 'Administrador', ejecutiva: 'Dirección Ejecutiva', director: 'Director(a)', subdirector: 'Subdirector(a)' }
+const ROLE_LABELS = { admin: 'Administrador', ejecutiva: 'Dirección Ejecutiva', director: 'Director(a)', subdirector: 'Subdirector(a)', usuario: 'Usuario' }
 
 // Menú: "Inicio" + un desplegable por dirección con sus rubros.
 export default function Topnav({ direcciones, vista, onNavigate, user, onLogout }) {
