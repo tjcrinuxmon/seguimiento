@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import db from './db.js'
 import { permisos } from './src/rubros.js'
+import { renombrarEnRegistros } from './scripts/abogados.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -333,22 +334,9 @@ app.delete('/api/ric/:section/:id', exigir('recursos'), seccionRic, (req, res) =
 
 // ─── Catálogo de abogados por subdirección ────────────────────────────────────
 // Lo consultan quienes ven la subdirección; solo un administrador lo modifica.
-const SUBDIRECCIONES_ABOGADOS = { recursos: 'recursos', ri: 'recursos' }   // subdirección → permiso que la ve
-
-// RI-Consultas guarda el nombre del abogado (no el id): al corregir un nombre en el catálogo se
-// corrige en sus registros, también en los compartidos ("A/B").
-function renombrarEnRi(viejo, nuevo) {
-  const upd = db.prepare('UPDATE ric_registros SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-  db.transaction(() => {
-    for (const r of db.prepare('SELECT id, data FROM ric_registros').all()) {
-      const d = JSON.parse(r.data)
-      const nombres = String(d.abogado || '').split('/').map(x => x.trim())
-      if (!nombres.includes(viejo)) continue
-      d.abogado = nombres.map(n => (n === viejo ? nuevo : n)).join('/')
-      upd.run(JSON.stringify(d), r.id)
-    }
-  })()
-}
+// subdirección → permiso que la ve. Litigio y RI-Consultas guardan en sus registros el nombre
+// del abogado (no el id): al corregir un nombre en el catálogo se corrige en sus registros.
+const SUBDIRECCIONES_ABOGADOS = { recursos: 'recursos', ri: 'recursos', litigio: 'litigio' }
 
 app.get('/api/abogados', (req, res) => {
   const sub = req.query.subdireccion
@@ -373,8 +361,16 @@ app.put('/api/abogados/:id', (req, res) => {
   const nombre = req.body?.nombre !== undefined ? String(req.body.nombre).trim() : actual.nombre
   if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' })
   const activo = req.body?.activo !== undefined ? (req.body.activo ? 1 : 0) : actual.activo
+  // Si el nombre nuevo ya existe en el catálogo ("Chris" → "Christian"), se fusionan: sus
+  // registros pasan a ese nombre y este renglón se quita del catálogo.
+  const igual = nombre !== actual.nombre &&
+    db.prepare('SELECT id FROM abogados WHERE subdireccion = ? AND nombre = ? AND id <> ?').get(actual.subdireccion, nombre, actual.id)
+  if (nombre !== actual.nombre) renombrarEnRegistros(db, actual.subdireccion, actual.nombre, nombre)
+  if (igual) {
+    db.prepare('DELETE FROM abogados WHERE id = ?').run(actual.id)
+    return res.json({ ...db.prepare('SELECT id, nombre, activo FROM abogados WHERE id = ?').get(igual.id), fusionado: true })
+  }
   db.prepare('UPDATE abogados SET nombre = ?, activo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nombre, activo, actual.id)
-  if (actual.subdireccion === 'ri' && nombre !== actual.nombre) renombrarEnRi(actual.nombre, nombre)
   res.json(db.prepare('SELECT id, nombre, activo FROM abogados WHERE id = ?').get(actual.id))
 })
 

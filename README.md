@@ -62,6 +62,19 @@ node scripts/importar-jdryc.js "EXCEL JDRYC.xlsx"             # importa (--forza
 Limpia fechas, separa oficio y fecha cuando venían juntos y unifica nombres de abogados; lo
 que no pudo leer queda con su texto original en "Notas de la importación" de cada registro.
 
+## Abogados
+
+Cada subdirección tiene su catálogo (botón "Abogados"; solo administradores lo modifican).
+Solo los activos se ofrecen para asignar; dar de baja a alguien no cambia sus asuntos. Un
+asunto puede tener varios abogados ("A/B"). Litigio y RI-Consultas guardan el nombre en el
+registro: corregir un nombre en el catálogo lo corrige en sus registros, y si queda igual a
+otro, se fusionan. Para alinear los registros con el catálogo (nombres cortos, "JC" → "Juan
+Carlos", y agregar como inactivos los que falten):
+
+```bash
+node scripts/abogados.js litigio   # o: ri
+```
+
 ## Migración desde Tareas (una sola vez)
 
 ```bash

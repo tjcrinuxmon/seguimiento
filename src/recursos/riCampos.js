@@ -12,7 +12,7 @@ export const ESTATUS_RI = ['', 'EN TRÁMITE', 'CONCLUIDO']
 const estatus = { key: 'estatus', label: 'Estatus', type: 'select', options: ESTATUS_RI }
 // Abogados: del catálogo de RI-Consultas (botón "Abogados"); los dados de baja no se ofrecen,
 // pero sus registros conservan el nombre.
-const abogado = (label = 'Abogado') => ({ key: 'abogado', label, type: 'select', catalogo: true })
+const abogado = (label = 'Abogado') => ({ key: 'abogado', label, type: 'select', catalogo: true, multiple: true })
 const notas = { key: 'notasImportacion', label: 'Notas de la importación', type: 'textarea', wide: true, formOnly: true }
 
 export const DIRECCIONES_RI = ['', 'DEA', 'DEAJ', 'DECEYEC', 'DEOE', 'DEPPP', 'DERFE', 'DESPEN', 'FISCALIZACIÓN', 'UTCE', "VINC. OPL'S"]

@@ -144,6 +144,13 @@ if (!db.prepare("SELECT COUNT(*) AS n FROM abogados WHERE subdireccion = 'recurs
   for (const n of ['Silvia Torres Pacheco', 'Noemi Nycole Fidencio Mariano', 'Rosario Ortega Urrutia', 'Adalberto de Jesus Romero Villa']) ins.run(n)
 }
 
+// Litigio: catálogo propio (subdireccion = 'litigio'); sus registros guardan el nombre.
+if (!db.prepare("SELECT COUNT(*) AS n FROM abogados WHERE subdireccion = 'litigio'").get().n) {
+  const ins = db.prepare("INSERT INTO abogados (subdireccion, nombre) VALUES ('litigio', ?)")
+  for (const n of ['Juan Carlos', 'Luis Carlos', 'Eduardo', 'Edgar', 'Jessica', 'Guadalupe', 'Alejandra', 'Anay',
+    'Laura', 'Luisa', 'Christian', 'Aníbal', 'Absalón', 'Jorge', 'Zeferino']) ins.run(n)
+}
+
 // RI-Consultas tiene su propio catálogo (subdireccion = 'ri'); sus registros guardan el nombre.
 if (!db.prepare("SELECT COUNT(*) AS n FROM abogados WHERE subdireccion = 'ri'").get().n) {
   const ins = db.prepare("INSERT INTO abogados (subdireccion, nombre) VALUES ('ri', ?)")

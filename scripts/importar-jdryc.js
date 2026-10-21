@@ -17,7 +17,7 @@ import { existsSync } from 'fs'
 import { resolve } from 'path'
 import * as J from './jdryc.js'
 import { SECCIONES_RI } from '../src/recursos/riCampos.js'
-import { sincronizarAbogadosRi } from './abogados-ri.js'
+import { sincronizarAbogados } from './abogados.js'
 
 const require = createRequire(import.meta.url)
 const XLSX = require('xlsx')
@@ -210,7 +210,7 @@ for (const s of registros) {
   if (n !== s.filas.length) { bien = false; console.error(`✗ ${s.seccion}: se esperaban ${s.filas.length} y hay ${n}`) }
 }
 if (bien) {
-  const { renombrados, agregados } = sincronizarAbogadosRi(db)
+  const { renombrados, agregados } = sincronizarAbogados(db, 'ri')
   console.log(`\nAbogados: ${renombrados} registros con el nombre completo del catálogo; agregados como inactivos: ${agregados.join(', ') || 'ninguno'}.`)
 }
 console.log(bien ? `\n✅ Importados ${registros.reduce((t, s) => t + s.filas.length, 0)} registros a RI-Consultas.` : '\n✗ Los conteos no cuadran; revisa.')

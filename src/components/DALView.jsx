@@ -1,17 +1,17 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
-import { getDalSection, createDalRecord, updateDalRecord, deleteDalRecord } from '../api.js'
+import { getDalSection, createDalRecord, updateDalRecord, deleteDalRecord, getAbogados } from '../api.js'
+import Abogados from '../recursos/Abogados.jsx'
 import { FranjaAlertas } from './tablero/Tablero.jsx'
 import { UMBRAL_DIAS, alertas as contarAlertas, asuntosLitigio, estatusLitigio } from './tablero/dal.js'
 import { EstatusAsunto } from './tablero/Plazos.jsx'
 import { indiceExpedientes, relacionados, clavesExpediente, SECCIONES_RELACION } from './litigio/expedientes.js'
 
 /* ─── CONSTANTS ─────────────────────────────────────────────────────────── */
-const BASE_ABOGADOS = ['','JC','Luis Carlos','Eduardo','Edgar','Jessica','Guadalupe',
-  'Alejandra','Anay','Laura','Luisa','Christian','Aníbal','Absalón','Jorge','Zeferino']
 const ANOS = ['','2022','2023','2024','2025','2026']
 
-// Lista de abogados para los selectores con "+ Agregar abogado…". La usan Litigio y RI-Consultas.
+// Abogados activos del catálogo de la subdirección (botón "Abogados"), para los selectores.
+// La usan Litigio y RI-Consultas.
 export const AbogadosCtx = React.createContext(null)
 // Litigio: registros de todas las secciones unidos por expediente (columnas "Sentencia",
 // "Requerimientos", "Emplazamiento", la sección "Del mismo expediente" del detalle y las
@@ -77,8 +77,6 @@ function FieldInput({ schema, value, onChange }) {
   const { label, type, options, required, rows } = schema
   const abogadosCtx = React.useContext(AbogadosCtx)
   const relCtx = React.useContext(RelacionesCtx)
-  const [adding, setAdding] = useState(false)
-  const [newName, setNewName] = useState('')
 
   const labelEl = (
     <label style={{ fontSize: 12, fontWeight: 700, color: '#454247', display: 'block', marginBottom: 5 }}>
@@ -86,18 +84,6 @@ function FieldInput({ schema, value, onChange }) {
     </label>
   )
 
-  const handleAdd = () => {
-    const name = newName.trim()
-    if (!name) return
-    if (abogadosCtx.abogados.some(a => a.toLowerCase() === name.toLowerCase())) {
-      alert(`"${name}" ya está en la lista`)
-      return
-    }
-    abogadosCtx.addAbogado(name)
-    onChange(name)
-    setAdding(false)
-    setNewName('')
-  }
 
   if (type === 'checkbox') return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', paddingTop: 22 }}>
@@ -106,39 +92,44 @@ function FieldInput({ schema, value, onChange }) {
       <span style={{ fontSize: 13 }}>{label}</span>
     </label>
   )
-  if (type === 'select') {
-    // allowAdd: lista con "+ Agregar abogado…" (Litigio); catalogo: lista de un catálogo que se
-    // administra aparte (RI-Consultas, botón "Abogados")
-    const base = ((schema.allowAdd || schema.catalogo) && abogadosCtx) ? abogadosCtx.abogados : (options || [])
-    // Un valor guardado que ya no está en la lista (p. ej. importado) se conserva como opción
-    const opts = value && !base.includes(value) ? [...base, value] : base
-    if (adding) return (
-      <div>
-        {labelEl}
-        <div style={{ display:'flex', gap:6 }}>
-          <input className="ine-input" style={{ flex:1 }} value={newName} autoFocus
-            placeholder="Nombre del abogado"
-            onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
-              if (e.key === 'Escape') { setAdding(false); setNewName('') }
-            }} />
-          <button className="btn-ine" style={{ padding:'7px 12px', fontSize:12, whiteSpace:'nowrap' }}
-            onClick={handleAdd}>Agregar</button>
-          <button className="btn-outline" style={{ padding:'7px 10px', fontSize:13 }}
-            onClick={() => { setAdding(false); setNewName('') }}>✕</button>
-        </div>
-      </div>
-    )
+  if (type === 'select' && schema.catalogo && schema.multiple) {
+    // Uno o varios abogados ("A/B"): los activos del catálogo; los que ya tenía el registro se
+    // conservan aunque estén dados de baja (se pueden quitar para reasignar).
+    const activos = (abogadosCtx?.abogados || []).filter(Boolean)
+    const elegidos = String(value || '').split('/').map(x => x.trim()).filter(Boolean)
+    const poner = (lista) => onChange(lista.join('/'))
     return (
       <div>
         {labelEl}
-        <select className="ine-input" value={value ?? ''} onChange={e => {
-          if (e.target.value === '__add__') { setAdding(true); return }
-          onChange(e.target.value)
-        }}>
+        <div className="ine-input" style={{ display:'flex',flexWrap:'wrap',alignItems:'center',gap:6,minHeight:40,height:'auto',padding:'6px 8px' }}>
+          {elegidos.map(n => (
+            <span key={n} style={{ display:'inline-flex',alignItems:'center',gap:4,padding:'2px 4px 2px 10px',borderRadius:16,fontSize:12,fontWeight:600,
+              background: activos.includes(n) ? '#EDEAE6' : '#F7F5F3', color:'#454247', border:'1px solid #E3DFDA' }}
+              title={activos.includes(n) ? n : `${n} (dado de baja)`}>
+              {n}{!activos.includes(n) && <span style={{ fontWeight:400,color:'#828A91' }}>· baja</span>}
+              <button type="button" onClick={() => poner(elegidos.filter(x => x !== n))} aria-label={`Quitar a ${n}`}
+                style={{ border:'none',background:'none',cursor:'pointer',color:'#828A91',fontSize:14,lineHeight:1,padding:'0 4px' }}>×</button>
+            </span>
+          ))}
+          <select value="" onChange={e => { if (e.target.value) poner([...elegidos, e.target.value]) }} aria-label={`Agregar ${label.toLowerCase()}`}
+            style={{ border:'none',background:'transparent',fontSize:13,color:'#828A91',flex:1,minWidth:140,outline:'none',cursor:'pointer' }}>
+            <option value="">{elegidos.length ? '+ Agregar otro' : '— Seleccionar —'}</option>
+            {activos.filter(a => !elegidos.includes(a)).map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+      </div>
+    )
+  }
+  if (type === 'select') {
+    // catalogo: lista de un catálogo que se administra aparte (botón "Abogados")
+    const base = (schema.catalogo && abogadosCtx) ? ['', ...abogadosCtx.abogados.filter(Boolean)] : (options || [])
+    // Un valor guardado que ya no está en la lista (p. ej. importado) se conserva como opción
+    const opts = value && !base.includes(value) ? [...base, value] : base
+    return (
+      <div>
+        {labelEl}
+        <select className="ine-input" value={value ?? ''} onChange={e => onChange(e.target.value)}>
           {opts.map(o => <option key={o} value={o}>{o || '— Seleccionar —'}</option>)}
-          {schema.allowAdd && <option value="__add__">+ Agregar abogado…</option>}
         </select>
       </div>
     )
@@ -591,13 +582,16 @@ const colEmplaz = (propia) => (row, rel) => {
 const S_ACTORES = [
   { key:'expediente',    label:'Expediente',    required:true },
   { key:'actor',         label:'Actor',         required:true },
+  { key:'cargo',         label:'Cargo' },
+  { key:'adscripcion',   label:'Área de adscripción' },
+  { key:'representante', label:'Abogado o representante legal' },
   { key:'ano',           label:'Año',           type:'select', options:ANOS },
   { key:'observaciones', label:'Observaciones', type:'textarea', wide:true },
 ]
 const S_EMPLAZ = [
   { key:'expediente',      label:'Expediente',      required:true },
   { key:'fechaEmplaz',     label:'Fecha Emplazamiento', type:'date' },
-  { key:'abogado',         label:'Abogado',         type:'select', options:BASE_ABOGADOS, allowAdd:true },
+  { key:'abogado',         label:'Abogado',         type:'select', catalogo:true, multiple:true },
   { key:'entregaFicha',    label:'Entrega Ficha',   type:'date' },
   { key:'revision',        label:'Revisión',        type:'date' },
   { key:'vencimiento',     label:'Vencimiento',     type:'date' },
@@ -621,7 +615,7 @@ const S_SENTENCIAS = [
   { key:'fechaNotificacion', label:'Fecha Notificación', type:'date' },
   { key:'plazo',             label:'Plazo (días)',      type:'number' },
   { key:'fechaVencimiento',  label:'Fecha Vencimiento', type:'date' },
-  { key:'abogado',           label:'Abogado',          type:'select', options:BASE_ABOGADOS, allowAdd:true },
+  { key:'abogado',           label:'Abogado',          type:'select', catalogo:true, multiple:true },
   { key:'fechaEntregaTEPJF', label:'Entrega TEPJF',    type:'date', entregaBadge:'fechaVencimiento' },
   { key:'_emplaz',           label:'Emplazamiento',    tableOnly:true, calc: colEmplaz('sentencias') },
 ]
@@ -630,7 +624,7 @@ const S_REQUERIMS = [
   { key:'plazo',             label:'Plazo (días)',       type:'number' },
   { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date' },
   { key:'fechaNotificacion', label:'Fecha Notificación', type:'date' },
-  { key:'abogado',           label:'Abogado',           type:'select', options:BASE_ABOGADOS, allowAdd:true },
+  { key:'abogado',           label:'Abogado',           type:'select', catalogo:true, multiple:true },
   { key:'fechaEntregaTEPJF', label:'Entrega TEPJF',     type:'date', entregaBadge:'fechaVencimiento' },
   { key:'observaciones',     label:'Observaciones',     type:'textarea', wide:true },
   { key:'_sentencia',        label:'Sentencia',         tableOnly:true, calc: colSentencia('requerims') },
@@ -643,7 +637,7 @@ const S_CUMPLIMS = [
   { key:'condena',                label:'Condena',               type:'textarea', wide:true },
   { key:'prestacionesPagadas',    label:'Prestaciones Pagadas',  type:'textarea', wide:true },
   { key:'prestacionesPorCumplir', label:'Prestaciones por Cumplir', type:'textarea', wide:true },
-  { key:'abogado',                label:'Abogado',               type:'select', options:BASE_ABOGADOS, allowAdd:true },
+  { key:'abogado',                label:'Abogado',               type:'select', catalogo:true, multiple:true },
   { key:'returno',                label:'Returno' },
   { key:'notificaciones',         label:'Notificaciones',        type:'textarea', wide:true },
   { key:'fechaEntrega',           label:'Fecha de Entrega',      type:'date' },
@@ -655,7 +649,7 @@ const S_INCIDENTES = [
   { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date' },
   { key:'plazo',             label:'Plazo (días)',       type:'number' },
   { key:'fechaNotificacion', label:'Fecha Notificación', type:'date', entregaBadge:'fechaVencimiento' },
-  { key:'abogado',           label:'Abogado',           type:'select', options:BASE_ABOGADOS, allowAdd:true },
+  { key:'abogado',           label:'Abogado',           type:'select', catalogo:true, multiple:true },
 ]
 const S_AMPAROS = [
   { key:'expediente',        label:'Expediente',        required:true },
@@ -663,7 +657,7 @@ const S_AMPAROS = [
   { key:'plazo',             label:'Plazo (días)',       type:'number' },
   { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date' },
   { key:'fechaNotificacion', label:'Fecha Notificación', type:'date' },
-  { key:'abogado',           label:'Abogado',           type:'select', options:BASE_ABOGADOS, allowAdd:true },
+  { key:'abogado',           label:'Abogado',           type:'select', catalogo:true, multiple:true },
   { key:'tribunal',          label:'Tribunal' },
   { key:'fechaCumplimiento', label:'Fecha Cumplimiento', type:'date', entregaBadge:'fechaVencimiento' },
 ]
@@ -673,7 +667,7 @@ const S_CONCILIACION = [
   { key:'fechaNotificacion', label:'Fecha Notificación', type:'date' },
   { key:'fechaAudiencia',    label:'Fecha Audiencia',   type:'date', isVenc:true },
   { key:'ubicacion',         label:'Ubicación Audiencia' },
-  { key:'abogado',           label:'Abogado',           type:'select', options:BASE_ABOGADOS, allowAdd:true },
+  { key:'abogado',           label:'Abogado',           type:'select', catalogo:true, multiple:true },
 ]
 const S_OIC = [
   { key:'expediente',        label:'Expediente',        required:true },
@@ -685,7 +679,7 @@ const S_REENCAUZ = [
   { key:'expediente',        label:'Expediente',        required:true },
   { key:'fechaNotificacion', label:'Fecha Notificación', type:'date' },
   { key:'actor',             label:'Actor' },
-  { key:'abogado',           label:'Abogado',           type:'select', options:BASE_ABOGADOS, allowAdd:true },
+  { key:'abogado',           label:'Abogado',           type:'select', catalogo:true, multiple:true },
   { key:'notas',             label:'Notas',             type:'textarea', wide:true },
 ]
 
@@ -804,23 +798,12 @@ export default function DALView({ user, onDashboard }) {
   const [loading,   setLoading]   = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  const [abogados, setAbogados] = useState(() => {
-    try {
-      const extra = JSON.parse(localStorage.getItem('dal_abogados_extra') || '[]')
-      return [...BASE_ABOGADOS, ...extra.filter(a => !BASE_ABOGADOS.includes(a))]
-    } catch { return BASE_ABOGADOS }
-  })
-
-  const addAbogado = useCallback((name) => {
-    setAbogados(prev => {
-      const next = [...prev, name]
-      try {
-        const extra = next.filter(a => !BASE_ABOGADOS.includes(a))
-        localStorage.setItem('dal_abogados_extra', JSON.stringify(extra))
-      } catch {}
-      return next
-    })
-  }, [])
+  // Catálogo de abogados de Litigio: solo los activos se ofrecen para asignar
+  const [catalogo, setCatalogo] = useState([])
+  const [verAbogados, setVerAbogados] = useState(false)
+  const cargarCatalogo = useCallback(() => getAbogados('litigio').then(setCatalogo).catch(() => {}), [])
+  useEffect(() => { cargarCatalogo() }, [cargarCatalogo])
+  const abogados = useMemo(() => catalogo.filter(a => a.activo).map(a => a.nombre), [catalogo])
 
   const loadAll = useCallback(async () => {
     setLoading(true); setLoadError('')
@@ -835,6 +818,7 @@ export default function DALView({ user, onDashboard }) {
   }, [])
 
   useEffect(() => { loadAll() }, [loadAll])
+  const cambioCatalogo = () => { cargarCatalogo(); loadAll() }
 
   const handleUpdate = useCallback((section, records) => {
     setStore(s => ({ ...s, [section]: records }))
@@ -850,7 +834,7 @@ export default function DALView({ user, onDashboard }) {
   const alertas = useMemo(() => loading ? null : contarAlertas(asuntosLitigio(store)), [store, loading, loadError])
 
   return (
-    <AbogadosCtx.Provider value={{ abogados, addAbogado }}>
+    <AbogadosCtx.Provider value={{ abogados }}>
     <RelacionesCtx.Provider value={relaciones}>
     <div style={{ display:'flex',flexDirection:'column',gap:12,height:'100%' }}>
     {!loadError && (
@@ -885,11 +869,19 @@ export default function DALView({ user, onDashboard }) {
             </button>
           )
         })}
+        <button type="button" onClick={() => setVerAbogados(v => !v)} className="btn-outline"
+          style={{ marginLeft:'auto',flexShrink:0,fontSize:12,padding:'6px 12px' }}>Abogados</button>
 
       </nav>}
 
       {/* Content */}
       <div style={{ flex:1,overflowY:'auto',padding:'24px 28px',background:'#F7F5F3' }}>
+        {verAbogados && (
+          <div style={{ marginBottom:20 }}>
+            <Abogados subdireccion="litigio" abogados={catalogo} puedeEditar={user?.role === 'admin'}
+              onCambio={cambioCatalogo} onCerrar={() => setVerAbogados(false)} />
+          </div>
+        )}
         {loading ? (
           <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:200 }}>
             <div style={{ textAlign:'center' }}>
