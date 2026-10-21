@@ -67,16 +67,21 @@ export async function cargarLitigio() {
   return Object.fromEntries(SECCIONES.map((s, i) => [s, secciones[i]]))
 }
 
+// Estatus de un registro de Litigio de una sección con plazo (null si la sección no tiene)
+export function estatusLitigio(seccion, r) {
+  const t = TIPOS_LITIGIO.find(x => x.clave === seccion)
+  if (!t) return null
+  const fechas = t.cierre.map(c => r[c])
+  const cerrado = fechas.every(Boolean)
+  const cierre = cerrado ? [...fechas].sort().pop() : null
+  return { vence: r[t.vence] || null, cierre, ...clasificar(r[t.vence], cierre, cerrado) }
+}
+
 export function asuntosLitigio(d) {
-  return TIPOS_LITIGIO.flatMap(t => (d[t.clave] || []).map(r => {
-    const fechas = t.cierre.map(c => r[c])
-    const cerrado = fechas.every(Boolean)
-    const cierre = cerrado ? fechas.sort().pop() : null
-    return {
-      id: `${t.clave}-${r.id}`, tipo: t.clave, tipoLabel: t.label, expediente: r.expediente || '—',
-      abogado: r.abogado || '', abogados: separarAbogados(r.abogado), vence: r[t.vence] || null, cierre, ...clasificar(r[t.vence], cierre, cerrado),
-    }
-  }))
+  return TIPOS_LITIGIO.flatMap(t => (d[t.clave] || []).map(r => ({
+    id: `${t.clave}-${r.id}`, tipo: t.clave, tipoLabel: t.label, expediente: r.expediente || '—',
+    abogado: r.abogado || '', abogados: separarAbogados(r.abogado), ...estatusLitigio(t.clave, r),
+  })))
 }
 
 // ── Recursos y Consultas ────────────────────────────────────────────────────

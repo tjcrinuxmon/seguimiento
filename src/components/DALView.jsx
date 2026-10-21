@@ -2,7 +2,9 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { getDalSection, createDalRecord, updateDalRecord, deleteDalRecord } from '../api.js'
 import { FranjaAlertas } from './tablero/Tablero.jsx'
-import { UMBRAL_DIAS, alertas as contarAlertas, asuntosLitigio } from './tablero/dal.js'
+import { UMBRAL_DIAS, alertas as contarAlertas, asuntosLitigio, estatusLitigio } from './tablero/dal.js'
+import { EstatusAsunto } from './tablero/Plazos.jsx'
+import { indiceExpedientes, relacionados, clavesExpediente, SECCIONES_RELACION } from './litigio/expedientes.js'
 
 /* ─── CONSTANTS ─────────────────────────────────────────────────────────── */
 const BASE_ABOGADOS = ['','JC','Luis Carlos','Eduardo','Edgar','Jessica','Guadalupe',
@@ -11,6 +13,10 @@ const ANOS = ['','2022','2023','2024','2025','2026']
 
 // Lista de abogados para los selectores con "+ Agregar abogado…". La usan Litigio y RI-Consultas.
 export const AbogadosCtx = React.createContext(null)
+// Litigio: registros de todas las secciones unidos por expediente (columnas "Sentencia",
+// "Requerimientos", "Emplazamiento", la sección "Del mismo expediente" del detalle y las
+// sugerencias al capturar el expediente). RI-Consultas no lo usa.
+const RelacionesCtx = React.createContext(null)
 const SECTIONS = ['actores','emplaz','noemplaz','sentencias','requerims','cumplims','incidentes','amparos','conciliacion','oic','reencauz']
 
 /* ─── UTILITIES ─────────────────────────────────────────────────────────── */
@@ -70,6 +76,7 @@ function EntregaBadge({ entrega, venc }) {
 function FieldInput({ schema, value, onChange }) {
   const { label, type, options, required, rows } = schema
   const abogadosCtx = React.useContext(AbogadosCtx)
+  const relCtx = React.useContext(RelacionesCtx)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
 
@@ -142,10 +149,18 @@ function FieldInput({ schema, value, onChange }) {
       <textarea className="ine-input" rows={rows||3} value={value||''} onChange={e => onChange(e.target.value)} />
     </div>
   )
+  const sugerir = schema.key === 'expediente' && relCtx?.expedientes?.length
   return (
     <div>
       {labelEl}
-      <input type={type||'text'} className="ine-input" value={value??''} onChange={e => onChange(e.target.value)} />
+      <input type={type||'text'} className="ine-input" value={value??''} onChange={e => onChange(e.target.value)}
+        list={sugerir ? 'expedientes-litigio' : undefined} autoComplete={sugerir ? 'off' : undefined} />
+      {sugerir && (
+        <datalist id="expedientes-litigio">{relCtx.expedientes.map(x => <option key={x} value={x} />)}</datalist>
+      )}
+      {sugerir && value && !relCtx.idx.has(clavesExpediente(value)[0]) && (
+        <p style={{ fontSize:11,color:'#92400E',marginTop:4 }}>Expediente nuevo: no aparece en ninguna otra sección.</p>
+      )}
     </div>
   )
 }
@@ -227,7 +242,43 @@ function RecordForm({ title, schemas, initial, onSave, onClose, saving }) {
 
 // Detalle de un registro: todos sus campos (también los que no salen en la tabla), con
 // Editar y Cerrar. Se abre al hacer clic en un renglón.
-function DetalleRegistro({ title, schemas, row, canEdit, onEdit, onClose }) {
+// Del mismo expediente: los registros de las demás secciones, con sus fechas y estatus
+function DelMismoExpediente({ row, section }) {
+  const rel = React.useContext(RelacionesCtx)
+  if (!rel || !row.expediente) return null
+  const otros = relacionados(rel.idx, row, section)
+  const secciones = SECCIONES_RELACION.filter(k => otros[k]?.length)
+  return (
+    <section style={{ marginTop:20,paddingTop:16,borderTop:'1px solid #E3DFDA' }}>
+      <h3 style={{ fontSize:13,fontWeight:700,color:'#454247',margin:'0 0 10px' }}>Del mismo expediente</h3>
+      {!secciones.length && <p style={{ fontSize:12,color:'#828A91',margin:0 }}>No hay registros de este expediente en otras secciones.</p>}
+      <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
+        {secciones.flatMap(k => otros[k].map(r => {
+          const est = estatusLitigio(k, r)
+          const datos = (SCHEMAS[k] || []).filter(c => c.key !== 'expediente' && !c.calc && r[c.key] &&
+            (c.type === 'date' || c.key === 'estatus' || c.key === 'actor' || c.key === 'abogado' || c.key === 'sentido'))
+          return (
+            <div key={`${k}-${r.id}`} style={{ background:'#FBFAF8',border:'1px solid #EDEAE6',borderRadius:8,padding:'8px 12px' }}>
+              <div style={{ display:'flex',flexWrap:'wrap',alignItems:'center',gap:8,justifyContent:'space-between' }}>
+                <span style={{ fontSize:12,fontWeight:700,color:'#454247' }}>
+                  {SECTION_TITLES[k]}{r.expediente !== row.expediente && <span style={{ fontWeight:400,color:'#828A91' }}> · {r.expediente}</span>}
+                </span>
+                {est && est.estatus !== 'sin_fecha' && <EstatusAsunto a={est} />}
+              </div>
+              {datos.length > 0 && (
+                <p style={{ fontSize:12,color:'#454247',margin:'4px 0 0' }}>
+                  {datos.map(c => `${c.label}: ${c.type === 'date' ? fmtDate(r[c.key]) : r[c.key]}`).join(' · ')}
+                </p>
+              )}
+            </div>
+          )
+        }))}
+      </div>
+    </section>
+  )
+}
+
+function DetalleRegistro({ title, schemas, row, section, canEdit, onEdit, onClose }) {
   const valor = (c) => {
     const v = row[c.key]
     if (c.entregaBadge) return <EntregaBadge entrega={v} venc={row[c.entregaBadge]} />
@@ -256,6 +307,7 @@ function DetalleRegistro({ title, schemas, row, canEdit, onEdit, onClose }) {
           Sin capturar: {vacios.map(c => c.label).join(', ')}.
         </p>
       )}
+      <DelMismoExpediente row={row} section={section} />
       <div style={{ display:'flex',gap:12,justifyContent:'flex-end',marginTop:20,paddingTop:16,borderTop:'1px solid #E3DFDA' }}>
         <button className="btn-outline" onClick={onClose}>Cerrar</button>
         {canEdit && <button className="btn-ine" onClick={onEdit}>Editar</button>}
@@ -266,6 +318,7 @@ function DetalleRegistro({ title, schemas, row, canEdit, onEdit, onClose }) {
 
 function DataTable({ schemas, rows, onView, onEdit, onDelete, canEdit, canDelete }) {
   const cols = schemas.filter(s => !s.formOnly)
+  const rel = React.useContext(RelacionesCtx)
   return (
     <div style={{ overflowX:'auto' }}>
       <table style={{ width:'100%',fontSize:13,borderCollapse:'separate',borderSpacing:0 }}>
@@ -296,7 +349,9 @@ function DataTable({ schemas, rows, onView, onEdit, onDelete, canEdit, canDelete
               {cols.map(c => (
                 <td key={c.key} title={typeof row[c.key] === 'string' && row[c.key].length > 25 ? row[c.key] : undefined}
                   style={{ padding:'10px 12px',whiteSpace:'nowrap',maxWidth:c.wide ? 320 : 200,overflow:'hidden',textOverflow:'ellipsis' }}>
-                  {c.entregaBadge
+                  {c.calc
+                    ? (rel ? c.calc(row, rel) : null)
+                    : c.entregaBadge
                     ? <EntregaBadge entrega={row[c.key]} venc={row[c.entregaBadge]} />
                     : c.isVenc
                     ? <VBadge ds={row[c.key]} />
@@ -489,12 +544,45 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
       )}
       {deleting && <ConfirmDelete onConfirm={handleDelete} onCancel={() => setDeleting(null)} />}
       {viendo && !showForm && (
-        <DetalleRegistro title={title} schemas={schemas} row={viendo} canEdit={canEdit}
+        <DetalleRegistro title={title} schemas={schemas} row={viendo} section={section} canEdit={canEdit}
           onEdit={() => { setEditing(viendo); setViendo(null); setShowForm(true) }}
           onClose={() => setViendo(null)} />
       )}
     </div>
   )
+}
+
+/* ─── COLUMNAS DEL MISMO EXPEDIENTE ──────────────────────────────────────── */
+const Pastilla = ({ texto, tono = 'neutro', title }) => {
+  const t = { neutro: ['#F7F5F3', '#454247', '#E3DFDA'], ok: ['#ECFDF5', '#065F46', '#A7F3D0'], pendiente: ['#FFFBEB', '#92400E', '#FCD34D'], vacio: ['transparent', '#B2B2B2', 'transparent'] }[tono]
+  return (
+    <span title={title} style={{ display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:'nowrap',
+      background:t[0],color:t[1],border:`1px solid ${t[2]}` }}>{texto}</span>
+  )
+}
+const otrosDe = (rel, row, seccion, propia) => relacionados(rel.idx, row, propia)[seccion] || []
+
+// Emplazamientos / requerimientos → ¿ya hay sentencia?
+const colSentencia = (propia) => (row, rel) => {
+  const s = otrosDe(rel, row, 'sentencias', propia)
+  if (!s.length) return <Pastilla texto="Pendiente" tono="pendiente" title="Aún no hay sentencia registrada para este expediente" />
+  const fechas = s.map(x => x.fechaNotificacion).filter(Boolean).sort()
+  const texto = fechas.length ? `✓ ${fmtDate(fechas[fechas.length - 1])}` : '✓ Registrada'
+  return <Pastilla texto={s.length > 1 ? `${texto} (${s.length})` : texto} tono="ok" title={`${s.length} sentencia(s); fecha de notificación más reciente`} />
+}
+// Emplazamientos → requerimientos (cuántos y cuántos siguen abiertos)
+const colRequerims = (row, rel) => {
+  const r = otrosDe(rel, row, 'requerims', 'emplaz')
+  if (!r.length) return <Pastilla texto="—" tono="vacio" />
+  const abiertos = r.filter(x => estatusLitigio('requerims', x)?.estatus && !['a_tiempo', 'fuera'].includes(estatusLitigio('requerims', x).estatus)).length
+  return <Pastilla texto={abiertos ? `${r.length} · ${abiertos} abierto${abiertos > 1 ? 's' : ''}` : `${r.length} · atendidos`} tono={abiertos ? 'pendiente' : 'ok'} />
+}
+// Sentencias / requerimientos → ¿tiene emplazamiento registrado?
+const colEmplaz = (propia) => (row, rel) => {
+  const e = otrosDe(rel, row, 'emplaz', propia)
+  if (!e.length) return <Pastilla texto="Sin registro" tono="vacio" title="No hay emplazamiento registrado para este expediente" />
+  const f = e.map(x => x.fechaEmplaz).filter(Boolean).sort()[0]
+  return <Pastilla texto={f ? `✓ ${fmtDate(f)}` : '✓ Registrado'} tono="ok" />
 }
 
 /* ─── SECTION SCHEMAS ───────────────────────────────────────────────────── */
@@ -517,6 +605,8 @@ const S_EMPLAZ = [
   { key:'medioEntrega',    label:'Medio Entrega',   type:'select',
     options:['','Física','Paquetería DHL','Auxilio Jurisdiccional'] },
   { key:'actoImpugnado',   label:'Acto Impugnado',  wide:true },
+  { key:'_sentencia',      label:'Sentencia',       tableOnly:true, calc: colSentencia('emplaz') },
+  { key:'_requerims',      label:'Requerimientos',  tableOnly:true, calc: colRequerims },
 ]
 const S_NOEMPLAZ = [
   { key:'expediente',    label:'Expediente',  required:true },
@@ -533,6 +623,7 @@ const S_SENTENCIAS = [
   { key:'fechaVencimiento',  label:'Fecha Vencimiento', type:'date' },
   { key:'abogado',           label:'Abogado',          type:'select', options:BASE_ABOGADOS, allowAdd:true },
   { key:'fechaEntregaTEPJF', label:'Entrega TEPJF',    type:'date', entregaBadge:'fechaVencimiento' },
+  { key:'_emplaz',           label:'Emplazamiento',    tableOnly:true, calc: colEmplaz('sentencias') },
 ]
 const S_REQUERIMS = [
   { key:'expediente',        label:'Expediente',        required:true },
@@ -542,6 +633,8 @@ const S_REQUERIMS = [
   { key:'abogado',           label:'Abogado',           type:'select', options:BASE_ABOGADOS, allowAdd:true },
   { key:'fechaEntregaTEPJF', label:'Entrega TEPJF',     type:'date', entregaBadge:'fechaVencimiento' },
   { key:'observaciones',     label:'Observaciones',     type:'textarea', wide:true },
+  { key:'_sentencia',        label:'Sentencia',         tableOnly:true, calc: colSentencia('requerims') },
+  { key:'_emplaz',           label:'Emplazamiento',     tableOnly:true, calc: colEmplaz('requerims') },
 ]
 const S_CUMPLIMS = [
   { key:'expediente',             label:'Expediente',            required:true },
@@ -747,11 +840,18 @@ export default function DALView({ user, onDashboard }) {
     setStore(s => ({ ...s, [section]: records }))
   }, [])
 
+  // Registros unidos por expediente; se recalcula con cada captura
+  const relaciones = useMemo(() => loading ? null : {
+    idx: indiceExpedientes(store),
+    expedientes: [...new Set(SECTIONS.flatMap(s => (store[s] || []).map(r => (r.expediente || '').trim()).filter(Boolean)))].sort(),
+  }, [store, loading])
+
   // Se recalcula con cada captura, así que la franja refleja lo recién registrado
   const alertas = useMemo(() => loading ? null : contarAlertas(asuntosLitigio(store)), [store, loading, loadError])
 
   return (
     <AbogadosCtx.Provider value={{ abogados, addAbogado }}>
+    <RelacionesCtx.Provider value={relaciones}>
     <div style={{ display:'flex',flexDirection:'column',gap:12,height:'100%' }}>
     {!loadError && (
       <FranjaAlertas vencidos={alertas ? alertas.vencidos : null} porVencer={alertas?.porVencer}
@@ -817,6 +917,7 @@ export default function DALView({ user, onDashboard }) {
       </div>
     </div>
     </div>
+    </RelacionesCtx.Provider>
     </AbogadosCtx.Provider>
   )
 }
