@@ -48,14 +48,16 @@ function Campo({ def, valor, onChange, plazo, sugerencias, idBase, abogados }) {
 }
 
 // Lista editable de renglones (requerimientos, oficios, pruebas…)
-function Lista({ def, filas = [], onChange, plazo, idBase }) {
+// `soloLista`: el bloque no tiene más que esta lista; su título ya lo dice el bloque.
+function Lista({ def, filas = [], onChange, plazo, idBase, soloLista }) {
   const set = (i, k, v) => onChange(filas.map((f, j) => (j === i ? { ...f, [k]: v } : f)))
   const quitar = (i) => onChange(filas.filter((_, j) => j !== i))
   return (
-    <div className="mt-5">
+    <div className={soloLista ? 'mt-3' : 'mt-5'}>
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        <h4 className="text-sm font-bold text-ine-text">{def.titulo}</h4>
-        <span className="text-xs text-ine-muted">({filas.length})</span>
+        {soloLista
+          ? <span className="text-xs text-ine-muted">{filas.length ? `${filas.length} registrados` : 'Sin registros todavía.'}</span>
+          : <><h4 className="text-sm font-bold text-ine-text">{def.titulo}</h4><span className="text-xs text-ine-muted">({filas.length})</span></>}
         {plazo && <span className="text-xs text-ine-muted flex items-center gap-1.5">· Hasta {fmtFecha(plazo.fecha)} <EstadoPlazo plazo={plazo} /></span>}
       </div>
       <div className="flex flex-col gap-3">
@@ -202,7 +204,7 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
             )}
             <h3 className="text-base font-bold text-ine-text">{s.titulo}</h3>
             {s.nota && <p className="text-xs text-ine-muted mt-0.5">{s.nota}</p>}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-4">
+            {(i === 0 || s.campos.length > 0) && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-4">
               {i === 0 && (
                 <div>
                   <span className="ine-label">Expediente</span>
@@ -219,9 +221,10 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
                   plazo={c.plazo ? plazoDe(c.plazo) : null}
                   abogados={abogados} />
               ))}
-            </div>
+            </div>}
             {(s.listas || []).map(l => (
               <Lista key={l.k} def={l} filas={e[l.k]} onChange={v => set(l.k, v)} idBase="rc"
+                soloLista={s.campos.length === 0 && s.listas.length === 1}
                 plazo={l.plazo ? plazoDe(l.plazo) : null} />
             ))}
           </section>
@@ -229,7 +232,7 @@ export default function Ficha({ expediente, inhabiles, abogados, user, onCerrar,
       })}
       {etapasOcultas && (
         <p className="text-xs text-ine-muted text-center">
-          Las etapas de contestación, alegatos, revisión exhaustiva y resolución aparecen cuando la determinación es «Inicio del procedimiento».
+          La etapa de sustanciación (contestación, pruebas, alegatos, revisión exhaustiva, cierre de instrucción y resolución) aparece cuando la determinación es «Inicio del procedimiento».
         </p>
       )}
 

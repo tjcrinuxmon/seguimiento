@@ -82,12 +82,12 @@ export function asuntosLitigio(d) {
 // ── Recursos y Consultas ────────────────────────────────────────────────────
 // Solo los plazos que le tocan a la DEAJ (los de las partes solo informan).
 export const TIPOS_RECURSOS = [
-  { clave: 'acuerdo_listo',    label: 'Acuerdo listo (5º mes)' },
-  { clave: 'revision',         label: 'Revisión del acuerdo' },
-  { clave: 'termino',          label: 'Término: notificar acuerdo' },
-  { clave: 'acuerdo_admision', label: 'Acuerdo de admisión de pruebas' },
-  { clave: 'admision',         label: 'Admisión de pruebas' },
-  { clave: 'resolucion',       label: 'Resolución y envío a la SE' },
+  { clave: 'acuerdo_listo',           label: 'Acuerdo listo (5º mes)' },
+  { clave: 'revision',                label: 'Revisión del acuerdo' },
+  { clave: 'termino',                 label: 'Término: notificar acuerdo' },
+  { clave: 'proyecto',                label: 'Proyecto de resolución (25 días)' },
+  { clave: 'envio_se',                label: 'Envío de la resolución a la SE' },
+  { clave: 'notificacion_resolucion', label: 'Notificación de la resolución' },
 ]
 const etiquetaRc = Object.fromEntries(TIPOS_RECURSOS.map(t => [t.clave, t.label]))
 

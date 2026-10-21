@@ -96,27 +96,31 @@ function perfil(i) {
     case 12: return { ...base, ...recepcion(-240), ...investigacion(-240), ...determinar(-240, 'sobreseimiento', -60) }
     // Procedimiento iniciado
     case 13: return { ...base, ...recepcion(-160), ...investigacion(-160), ...determinar(-160, 'inicio', -6) }
-    case 14: return { ...base, ...recepcion(-175), ...investigacion(-175), ...determinar(-175, 'inicio', -25), fecha_contestacion: d(-9) }
-    case 15: return { ...base, ...recepcion(-200), ...investigacion(-200), ...determinar(-200, 'inicio', -50), fecha_contestacion: d(-35),
-      fecha_emision_admision: d(-26), oficio_notificacion_admision: oficio(i * 10 + 5), fecha_admision_pruebas: d(-22),
-      desahogos_pruebas: [{ prueba: 'Testimonial', fecha: d(-10), descripcion: 'Declaración de dos compañeros de trabajo.' }, { prueba: 'Documental', fecha: d(-12), descripcion: 'Correos electrónicos ofrecidos por la denunciante.' }] }
-    case 16: return { ...base, ...recepcion(-220), ...investigacion(-220), ...determinar(-220, 'inicio', -70), fecha_contestacion: d(-55),
-      fecha_emision_admision: d(-46), fecha_admision_pruebas: d(-42), fecha_acuerdo_alegatos: d(-5),
-      oficios_alegatos: [{ oficio: oficio(i * 10 + 6), destinatario: 'Denunciante', sintesis: 'Se notifica acuerdo de alegatos.', fecha_envio: d(-3) },
-                         { oficio: oficio(i * 10 + 7), destinatario: 'Persona denunciada', sintesis: 'Se notifica acuerdo de alegatos.', fecha_envio: d(-3) }] }
-    case 17: return { ...base, ...recepcion(-250), ...investigacion(-250), ...determinar(-250, 'inicio', -100), fecha_contestacion: d(-85),
-      fecha_emision_admision: d(-76), fecha_admision_pruebas: d(-72), fecha_acuerdo_alegatos: d(-40),
-      oficios_alegatos: [{ oficio: oficio(i * 10 + 6), destinatario: 'Ambas partes', sintesis: 'Se notifica acuerdo de alegatos.', fecha_envio: d(-38), fecha_desahogo: d(-31) }],
-      alegatos_recibidos: [{ fecha: d(-32), quien: 'denunciante', observaciones: 'Presenta alegatos por escrito.' }],
-      fecha_acuerdo_exhaustiva: d(-20),
-      oficios_exhaustiva: [{ oficio: oficio(i * 10 + 8), destinatario: 'Unidad Responsable', sintesis: 'Se solicita revisión exhaustiva del asunto.', fecha_envio: d(-18) }] }
-    case 18: return { ...base, ...recepcion(-280), ...investigacion(-280), ...determinar(-280, 'inicio', -130), fecha_contestacion: d(-115),
-      fecha_emision_admision: d(-106), fecha_admision_pruebas: d(-102), fecha_acuerdo_alegatos: d(-70), fecha_acuerdo_exhaustiva: d(-50),
-      fecha_cierre_instruccion: d(-30) }
-    default: return { ...base, ...recepcion(-320), ...investigacion(-320), ...determinar(-320, 'inicio', -170), fecha_contestacion: d(-150),
-      fecha_emision_admision: d(-141), fecha_admision_pruebas: d(-137), fecha_acuerdo_alegatos: d(-100), fecha_acuerdo_exhaustiva: d(-80),
-      fecha_cierre_instruccion: d(-60), fecha_acuerdo_resolucion: d(-30), fecha_envio_se: d(-28), fecha_aprobacion_se: d(-15),
-      notificaciones_resolucion: [{ oficio: oficio(i * 10 + 9), fecha: d(-10), destinatario: 'Ambas partes', sintesis: 'Se notifica la resolución.' }] }
+    // Sustanciación: contestación en curso (10 días desde la notificación del inicio)
+    case 14: return { ...base, ...recepcion(-175), ...investigacion(-175), ...determinar(-175, 'inicio', -8) }
+    // Contestó, se admitieron pruebas; requerimientos y desahogo de pruebas
+    case 15: return { ...base, ...recepcion(-200), ...investigacion(-200), ...determinar(-200, 'inicio', -50), fecha_contestacion: d(-38),
+      fecha_emision_admision: d(-26), fecha_notificacion_admision: d(-24),
+      requerimientos_sustanciacion: [{ oficio: oficio(i * 10 + 5), fecha_envio: d(-20), fecha_desahogo: d(-12) }, { oficio: oficio(i * 10 + 6), fecha_envio: d(-15) }],
+      desahogos_pruebas: [{ prueba: 'Testimonial: declaración de dos compañeros de trabajo.', fecha: d(-10) }, { prueba: 'Documental: correos electrónicos ofrecidos por la denunciante.', fecha: d(-12) }] }
+    // Alegatos en curso (5 días desde la notificación del acuerdo)
+    case 16: return { ...base, ...recepcion(-220), ...investigacion(-220), ...determinar(-220, 'inicio', -70), fecha_contestacion: d(-58),
+      fecha_emision_admision: d(-46), fecha_notificacion_admision: d(-44), fecha_acuerdo_alegatos: d(-5), fecha_notificacion_alegatos: d(-3) }
+    // Alegatos formulados; revisión exhaustiva
+    case 17: return { ...base, ...recepcion(-250), ...investigacion(-250), ...determinar(-250, 'inicio', -100), fecha_contestacion: d(-88),
+      fecha_emision_admision: d(-76), fecha_notificacion_admision: d(-74), fecha_acuerdo_alegatos: d(-40), fecha_notificacion_alegatos: d(-38),
+      fecha_alegatos: d(-33), fecha_acuerdo_exhaustiva: d(-20), fecha_notificacion_exhaustiva: d(-18) }
+    // Cierre de instrucción hace 45 días: el proyecto de resolución (25 días) ya venció
+    case 18: return { ...base, ...recepcion(-280), ...investigacion(-280), ...determinar(-280, 'inicio', -130), fecha_contestacion: d(-118),
+      fecha_emision_admision: d(-106), fecha_notificacion_admision: d(-104), fecha_acuerdo_alegatos: d(-70), fecha_notificacion_alegatos: d(-68),
+      fecha_alegatos: d(-62), fecha_acuerdo_exhaustiva: d(-55), fecha_notificacion_exhaustiva: d(-53),
+      fecha_cierre_instruccion: d(-45), fecha_notificacion_cierre: d(-43) }
+    // Resuelto y notificado
+    default: return { ...base, ...recepcion(-320), ...investigacion(-320), ...determinar(-320, 'inicio', -170), fecha_contestacion: d(-158),
+      fecha_emision_admision: d(-141), fecha_notificacion_admision: d(-139), fecha_acuerdo_alegatos: d(-100), fecha_notificacion_alegatos: d(-98),
+      fecha_alegatos: d(-92), fecha_acuerdo_exhaustiva: d(-80), fecha_notificacion_exhaustiva: d(-78),
+      fecha_cierre_instruccion: d(-60), fecha_notificacion_cierre: d(-58), fecha_acuerdo_resolucion: d(-30), fecha_envio_se: d(-28),
+      fecha_aprobacion_se: d(-15), fecha_notificacion_resolucion: d(-10) }
   }
 }
 

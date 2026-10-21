@@ -77,67 +77,74 @@ export const SECCIONES = [
       { k: 'fecha_notificacion_determinacion', label: 'Notificación del acuerdo', tipo: 'fecha', plazo: 'termino' },
     ],
   },
+  // ── Sustanciación (solo si la determinación es «Inicio del procedimiento») ──
+  // Los campos con `plazo` son la fecha en que realmente se hizo la actividad; junto a cada
+  // uno se muestra la fecha límite calculada (plazos.js).
   {
-    etapa: 'pruebas', titulo: 'Contestación y pruebas', soloInicio: true,
+    etapa: 'sustanciacion', titulo: 'Contestación y admisión de pruebas', soloInicio: true,
     campos: [
-      { k: 'fecha_contestacion', label: 'Contestación', tipo: 'fecha' },
-      { k: 'fecha_emision_admision', label: 'Emisión del acuerdo de admisión de pruebas', tipo: 'fecha', plazo: 'acuerdo_admision' },
-      { k: 'oficio_notificacion_admision', label: 'Oficio de notificación de admisión de pruebas', tipo: 'texto' },
-      { k: 'fecha_admision_pruebas', label: 'Admisión de pruebas', tipo: 'fecha', plazo: 'admision' },
-    ],
-    listas: [
-      { k: 'desahogos_pruebas', titulo: 'Desahogo de pruebas', nuevo: 'Agregar prueba',
-        columnas: [
-          { k: 'prueba', label: 'Prueba (testimonial, pericial…)', tipo: 'texto', ancho: 'md' },
-          { k: 'fecha', label: 'Fecha de desahogo', tipo: 'fecha', ancho: 'sm' },
-          { k: 'descripcion', label: 'Descripción', tipo: 'area', ancho: 'lg' },
-        ] },
-      { k: 'tramite', titulo: 'Requerimientos y acuerdos de trámite', nuevo: 'Agregar oficio',
-        columnas: [...OFICIO, { k: 'respuesta', label: 'Respuesta', tipo: 'area', ancho: 'lg' }] },
+      { k: 'fecha_contestacion', label: 'Contestación y ofrecimiento de pruebas', tipo: 'fecha', plazo: 'contestacion',
+        ayuda: '10 días desde el día siguiente a la notificación del acuerdo de inicio.' },
+      { k: 'fecha_emision_admision', label: 'Acuerdo de admisión de pruebas', tipo: 'fecha' },
+      { k: 'fecha_notificacion_admision', label: 'Notificación del acuerdo', tipo: 'fecha' },
     ],
   },
   {
-    etapa: 'alegatos', titulo: 'Alegatos', soloInicio: true,
-    campos: [
-      { k: 'fecha_acuerdo_alegatos', label: 'Acuerdo de alegatos', tipo: 'fecha' },
-    ],
+    etapa: 'sustanciacion', titulo: 'Requerimientos', soloInicio: true,
+    campos: [],
     listas: [
-      { k: 'oficios_alegatos', titulo: 'Oficios de notificación', nuevo: 'Agregar oficio', plazo: 'alegatos', columnas: OFICIO },
-      { k: 'alegatos_recibidos', titulo: 'Alegatos recibidos', nuevo: 'Agregar alegatos',
+      { k: 'requerimientos_sustanciacion', titulo: 'Requerimientos', nuevo: 'Agregar requerimiento',
         columnas: [
-          { k: 'fecha', label: 'Fecha', tipo: 'fecha', ancho: 'sm' },
-          { k: 'quien', label: 'Quién los envía', tipo: 'opcion', ancho: 'md',
-            opciones: [{ valor: 'denunciante', label: 'Denunciante' }, { valor: 'denunciado', label: 'Denunciado' }] },
-          { k: 'observaciones', label: 'Observaciones', tipo: 'area', ancho: 'lg' },
+          { k: 'oficio', label: 'Número de oficio', tipo: 'texto', ancho: 'md' },
+          { k: 'fecha_envio', label: 'Envío', tipo: 'fecha', ancho: 'sm' },
+          { k: 'fecha_desahogo', label: 'Desahogo', tipo: 'fecha', ancho: 'sm' },
         ] },
     ],
   },
   {
-    etapa: 'exhaustiva', titulo: 'Revisión exhaustiva', soloInicio: true,
-    nota: 'Se solicita a la UR, a las Juntas o a la propia DEAJ la revisión del asunto.',
-    campos: [
-      { k: 'fecha_acuerdo_exhaustiva', label: 'Acuerdo de revisión exhaustiva', tipo: 'fecha' },
-    ],
+    etapa: 'sustanciacion', titulo: 'Desahogo de pruebas', soloInicio: true,
+    campos: [],
     listas: [
-      { k: 'oficios_exhaustiva', titulo: 'Oficios de solicitud', nuevo: 'Agregar oficio', columnas: OFICIO },
+      { k: 'desahogos_pruebas', titulo: 'Pruebas', nuevo: 'Agregar prueba',
+        columnas: [
+          { k: 'prueba', label: 'Tipo de prueba', tipo: 'area', ancho: 'lg' },
+          { k: 'fecha', label: 'Fecha del desahogo', tipo: 'fecha', ancho: 'sm' },
+        ] },
     ],
   },
   {
-    etapa: 'resolucion', titulo: 'Cierre de instrucción y resolución', soloInicio: true,
+    etapa: 'sustanciacion', titulo: 'Acuerdo de alegatos', soloInicio: true,
     campos: [
-      { k: 'fecha_cierre_instruccion', label: 'Acuerdo de cierre de instrucción', tipo: 'fecha' },
-      { k: 'fecha_acuerdo_resolucion', label: 'Acuerdo de resolución', tipo: 'fecha' },
-      { k: 'fecha_envio_se', label: 'Envío a la SE para revisión', tipo: 'fecha', plazo: 'resolucion' },
-      { k: 'fecha_aprobacion_se', label: 'Aprobación de la SE', tipo: 'fecha' },
+      { k: 'fecha_acuerdo_alegatos', label: 'Emisión del acuerdo de alegatos', tipo: 'fecha' },
+      { k: 'fecha_notificacion_alegatos', label: 'Notificación del acuerdo de alegatos', tipo: 'fecha' },
+      { k: 'fecha_alegatos', label: 'Formulación de alegatos', tipo: 'fecha', plazo: 'alegatos',
+        ayuda: '5 días desde el día siguiente a la notificación del acuerdo de alegatos.' },
     ],
-    listas: [
-      { k: 'notificaciones_resolucion', titulo: 'Notificación de la resolución', nuevo: 'Agregar notificación',
-        columnas: [
-          { k: 'oficio', label: 'Núm. de oficio', tipo: 'texto', ancho: 'md' },
-          { k: 'fecha', label: 'Fecha', tipo: 'fecha', ancho: 'sm' },
-          { k: 'destinatario', label: 'Destinatario', tipo: 'texto', ancho: 'md' },
-          { k: 'sintesis', label: 'Síntesis', tipo: 'area', ancho: 'lg' },
-        ] },
+  },
+  {
+    etapa: 'sustanciacion', titulo: 'Acuerdo de revisión exhaustiva', soloInicio: true,
+    campos: [
+      { k: 'fecha_acuerdo_exhaustiva', label: 'Emisión del acuerdo', tipo: 'fecha' },
+      { k: 'fecha_notificacion_exhaustiva', label: 'Notificación del acuerdo', tipo: 'fecha' },
+    ],
+  },
+  {
+    etapa: 'sustanciacion', titulo: 'Acuerdo de cierre de instrucción', soloInicio: true,
+    campos: [
+      { k: 'fecha_cierre_instruccion', label: 'Emisión del acuerdo', tipo: 'fecha' },
+      { k: 'fecha_notificacion_cierre', label: 'Notificación del acuerdo', tipo: 'fecha' },
+    ],
+  },
+  {
+    etapa: 'sustanciacion', titulo: 'Resolución', soloInicio: true,
+    campos: [
+      { k: 'fecha_acuerdo_resolucion', label: 'Elaboración del proyecto de resolución', tipo: 'fecha', plazo: 'proyecto',
+        ayuda: '25 días desde el día siguiente a la emisión del acuerdo de cierre de instrucción.' },
+      { k: 'fecha_envio_se', label: 'Envío de la resolución a la Secretaría Ejecutiva', tipo: 'fecha', plazo: 'envio_se',
+        ayuda: '10 días después de que vencen los 25 del proyecto.' },
+      { k: 'fecha_aprobacion_se', label: 'Firma de la resolución', tipo: 'fecha' },
+      { k: 'fecha_notificacion_resolucion', label: 'Notificación de la resolución', tipo: 'fecha', plazo: 'notificacion_resolucion',
+        ayuda: '10 días desde la firma de la resolución.' },
     ],
   },
 ]

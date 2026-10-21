@@ -9,11 +9,14 @@
 //   inicio/no inicio a más tardar en el término.
 // - Días hábiles: lunes a viernes, menos los días inhábiles capturados.
 // - Recurso de inconformidad: 10 días hábiles desde la notificación del acuerdo.
-// - Acuerdo de admisión de pruebas: 8 días hábiles después de la contestación.
-// - Admisión de pruebas: a más tardar 5 días hábiles después de emitir ese acuerdo.
-// - Alegatos: 5 días hábiles desde el último oficio de notificación enviado.
-// - Resolución: 25 días hábiles después del acuerdo de cierre de instrucción; entonces se
-//   envía a la SE.
+// Sustanciación (solo con «Inicio del procedimiento»; DAL, 2026-10). "Desde el día siguiente"
+// = n días hábiles sin contar el día del acto:
+// - Contestar y ofrecer pruebas: 10 días desde la notificación del acuerdo de inicio (partes).
+// - Formular alegatos: 5 días desde la notificación del acuerdo de alegatos (partes).
+// - Proyecto de resolución: 25 días desde la emisión del acuerdo de cierre de instrucción.
+// - Envío de la resolución a la SE: 10 días después de que vencen esos 25.
+// - Notificación de la resolución: 10 días desde su firma.
+// En cada uno se captura la fecha en que realmente se hizo (`cuando`).
 //
 // Funciones puras (sin React) para poder probarlas por separado.
 
@@ -74,9 +77,6 @@ export function diasEntre(desdeIso, hastaIso) {
 //   - cuando: fecha en que se cumplió (para saber si fue a tiempo), si está hecho.
 //   - 'deaj': algo que nos toca hacer; vence si pasa la fecha y no está hecho.
 //   - 'partes': un plazo que corre para las partes; solo informa cuándo termina.
-const ultimaFecha = (lista, campo) =>
-  (lista || []).map(x => x?.[campo]).filter(f => deISO(f)).sort().pop() || null
-
 export function calcularPlazos(e, inhabiles = new Set()) {
   const p = []
   const add = (x) => { if (x.fecha) p.push(x) }
@@ -100,24 +100,29 @@ export function calcularPlazos(e, inhabiles = new Set()) {
       fecha: sumarHabiles(e.fecha_notificacion_determinacion, 10, inhabiles), quien: 'partes' })
   }
 
-  // Solo si se determinó iniciar el procedimiento
+  // Sustanciación: solo si se determinó iniciar el procedimiento
   if (e.determinacion === 'inicio') {
-    if (e.fecha_contestacion) {
-      add({ clave: 'acuerdo_admision', etapa: 'pruebas', label: 'Emitir acuerdo de admisión de pruebas',
-        fecha: sumarHabiles(e.fecha_contestacion, 8, inhabiles), quien: 'deaj', hecho: !!e.fecha_emision_admision, cuando: e.fecha_emision_admision || null })
+    if (notificado) {
+      add({ clave: 'contestacion', etapa: 'sustanciacion', label: 'Contestar y ofrecer pruebas (10 días)',
+        fecha: sumarHabiles(e.fecha_notificacion_determinacion, 10, inhabiles), quien: 'partes',
+        hecho: !!e.fecha_contestacion, cuando: e.fecha_contestacion || null })
     }
-    if (e.fecha_emision_admision) {
-      add({ clave: 'admision', etapa: 'pruebas', label: 'Admisión de pruebas',
-        fecha: sumarHabiles(e.fecha_emision_admision, 5, inhabiles), quien: 'deaj', hecho: !!e.fecha_admision_pruebas, cuando: e.fecha_admision_pruebas || null })
-    }
-    const envioAlegatos = ultimaFecha(e.oficios_alegatos, 'fecha_envio')
-    if (envioAlegatos) {
-      add({ clave: 'alegatos', etapa: 'alegatos', label: 'Plazo para presentar alegatos',
-        fecha: sumarHabiles(envioAlegatos, 5, inhabiles), quien: 'partes' })
+    if (e.fecha_notificacion_alegatos) {
+      add({ clave: 'alegatos', etapa: 'sustanciacion', label: 'Formular alegatos (5 días)',
+        fecha: sumarHabiles(e.fecha_notificacion_alegatos, 5, inhabiles), quien: 'partes',
+        hecho: !!e.fecha_alegatos, cuando: e.fecha_alegatos || null })
     }
     if (e.fecha_cierre_instruccion) {
-      add({ clave: 'resolucion', etapa: 'resolucion', label: 'Acuerdo de resolución y envío a la SE',
-        fecha: sumarHabiles(e.fecha_cierre_instruccion, 25, inhabiles), quien: 'deaj', hecho: !!e.fecha_envio_se, cuando: e.fecha_envio_se || null })
+      const proyecto = sumarHabiles(e.fecha_cierre_instruccion, 25, inhabiles)
+      add({ clave: 'proyecto', etapa: 'sustanciacion', label: 'Elaborar el proyecto de resolución (25 días)',
+        fecha: proyecto, quien: 'deaj', hecho: !!e.fecha_acuerdo_resolucion, cuando: e.fecha_acuerdo_resolucion || null })
+      add({ clave: 'envio_se', etapa: 'sustanciacion', label: 'Enviar la resolución a la Secretaría Ejecutiva (10 días)',
+        fecha: sumarHabiles(proyecto, 10, inhabiles), quien: 'deaj', hecho: !!e.fecha_envio_se, cuando: e.fecha_envio_se || null })
+    }
+    if (e.fecha_aprobacion_se) {
+      add({ clave: 'notificacion_resolucion', etapa: 'sustanciacion', label: 'Notificar la resolución (10 días)',
+        fecha: sumarHabiles(e.fecha_aprobacion_se, 10, inhabiles), quien: 'deaj',
+        hecho: !!e.fecha_notificacion_resolucion, cuando: e.fecha_notificacion_resolucion || null })
     }
   }
 
@@ -125,8 +130,8 @@ export function calcularPlazos(e, inhabiles = new Set()) {
   return p.map(x => {
     const dias = diasEntre(hoy, x.fecha)
     let estado
-    if (x.quien === 'partes') estado = dias < 0 ? 'concluido' : 'en_curso'
-    else if (x.hecho) estado = 'cumplido'
+    if (x.hecho) estado = 'cumplido'
+    else if (x.quien === 'partes') estado = dias < 0 ? 'concluido' : 'en_curso'
     else if (dias < 0) estado = 'vencido'
     else if (dias <= UMBRAL_DIAS) estado = 'por_vencer'
     else estado = 'pendiente'
@@ -146,10 +151,17 @@ export const ETAPAS = [
   { clave: 'radicacion',     label: 'Radicación' },
   { clave: 'investigacion',  label: 'Investigación preliminar' },
   { clave: 'determinacion',  label: 'Determinación' },
-  { clave: 'pruebas',        label: 'Contestación y pruebas', soloInicio: true },
-  { clave: 'alegatos',       label: 'Alegatos', soloInicio: true },
-  { clave: 'exhaustiva',     label: 'Revisión exhaustiva', soloInicio: true },
-  { clave: 'resolucion',     label: 'Cierre y resolución', soloInicio: true },
+  { clave: 'sustanciacion',  label: 'Sustanciación', soloInicio: true },
+]
+
+// Pasos de la sustanciación, para decir en cuál va ("Sustanciación: alegatos")
+const PASOS_SUSTANCIACION = [
+  { label: 'contestación y pruebas', tiene: e => e.fecha_contestacion || e.fecha_emision_admision || e.fecha_notificacion_admision ||
+      e.requerimientos_sustanciacion?.length || e.desahogos_pruebas?.length },
+  { label: 'alegatos',               tiene: e => e.fecha_acuerdo_alegatos || e.fecha_notificacion_alegatos || e.fecha_alegatos },
+  { label: 'revisión exhaustiva',    tiene: e => e.fecha_acuerdo_exhaustiva || e.fecha_notificacion_exhaustiva },
+  { label: 'cierre de instrucción',  tiene: e => e.fecha_cierre_instruccion || e.fecha_notificacion_cierre },
+  { label: 'resolución',             tiene: e => e.fecha_acuerdo_resolucion || e.fecha_envio_se || e.fecha_aprobacion_se },
 ]
 
 // Etapa en la que va el expediente: la más avanzada con algún dato capturado.
@@ -159,10 +171,7 @@ export function etapaActual(e) {
     radicacion:    e.fecha_acuerdo_radicacion || e.oficio_notificacion_radicacion,
     investigacion: e.fecha_acuerdo_investigacion || e.requerimientos?.length,
     determinacion: e.determinacion || e.fecha_acuerdo_determinacion,
-    pruebas:       e.fecha_contestacion || e.fecha_emision_admision,
-    alegatos:      e.fecha_acuerdo_alegatos || e.oficios_alegatos?.length,
-    exhaustiva:    e.fecha_acuerdo_exhaustiva || e.oficios_exhaustiva?.length,
-    resolucion:    e.fecha_cierre_instruccion || e.fecha_envio_se,
+    sustanciacion: PASOS_SUSTANCIACION.some(p => p.tiene(e)),
   }
   let actual = ETAPAS[0]
   for (const et of ETAPAS) if (tiene[et.clave]) actual = et
@@ -172,6 +181,10 @@ export function etapaActual(e) {
   }
   if (e.fecha_notificacion_resolucion || e.notificaciones_resolucion?.length) {
     return { ...actual, label: 'Resuelto y notificado', concluido: true }
+  }
+  if (actual.clave === 'sustanciacion') {
+    const paso = [...PASOS_SUSTANCIACION].reverse().find(p => p.tiene(e))
+    if (paso) return { ...actual, label: `Sustanciación: ${paso.label}` }
   }
   return actual
 }
