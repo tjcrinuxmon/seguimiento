@@ -21,7 +21,7 @@ const JWT_SECRET = process.env.JWT_SECRET
 const PORTAL_SSO_SECRET = process.env.PORTAL_SSO_SECRET
 if (!JWT_SECRET) { console.error('FATAL: JWT_SECRET no definido'); process.exit(1) }
 if (!PORTAL_SSO_SECRET) { console.error('FATAL: PORTAL_SSO_SECRET no definido'); process.exit(1) }
-const JWT_EXPIRES = '8h'
+const JWT_EXPIRES = '8h'   // sin actividad (se renueva con el uso)
 
 app.use(helmet({ contentSecurityPolicy: false }))
 const allowedOrigins = (process.env.ALLOWED_ORIGIN || 'http://localhost:3000,http://localhost:5176')
@@ -30,6 +30,7 @@ app.use(cors({
   origin: (origin, cb) => cb(null, !origin || allowedOrigins.includes(origin)),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  exposedHeaders: ['X-Nuevo-Token'],
 }))
 app.use(express.json({ limit: '2mb' }))
 
@@ -77,16 +78,27 @@ app.post('/api/auth/sso', ssoLimiter, (req, res) => {
   res.json({ token, user: publicUser(user) })
 })
 
-// Todo lo demás bajo /api requiere sesión
+// Todo lo demás bajo /api requiere sesión. La sesión vence tras JWT_EXPIRES sin actividad: a
+// una petición con más de RENOVAR_CADA desde que se firmó el token se le responde uno nuevo
+// (X-Nuevo-Token), con los datos actuales del usuario (rol, dirección, subdirección).
+const RENOVAR_CADA = 15 * 60   // segundos
 app.use('/api', (req, res, next) => {
   const auth = req.headers.authorization
   if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'No autorizado' })
+  let payload
   try {
-    req.user = jwt.verify(auth.slice(7), JWT_SECRET)
-    next()
+    payload = jwt.verify(auth.slice(7), JWT_SECRET)
   } catch {
-    res.status(401).json({ error: 'Sesión expirada. Inicia sesión nuevamente.' })
+    return res.status(401).json({ error: 'Sesión expirada. Inicia sesión nuevamente.' })
   }
+  req.user = payload
+  if (Date.now() / 1000 - (payload.iat || 0) > RENOVAR_CADA) {
+    const u = db.prepare('SELECT * FROM users WHERE id = ?').get(payload.id)
+    if (!u) return res.status(401).json({ error: 'Usuario no encontrado' })
+    req.user = publicUser(u)
+    res.set('X-Nuevo-Token', jwt.sign(req.user, JWT_SECRET, { expiresIn: JWT_EXPIRES }))
+  }
+  next()
 })
 
 // ─── Resumen para la pantalla de inicio (solo de los rubros que el usuario ve) ─

@@ -1,5 +1,6 @@
 import axios from 'axios'
-import { getToken, clearAuth } from './auth.js'
+import { getToken, renovarAuth } from './auth.js'
+import { renovarConPortal, mantenerPortal, irAlPortal } from './sesion.js'
 
 const api = axios.create({ baseURL: '/api/seg', timeout: 30000 })
 
@@ -12,13 +13,26 @@ api.interceptors.request.use((config) => {
 })
 
 api.interceptors.response.use(
-  (res) => { window.Carga?.fin(); return res },
-  (err) => {
+  (res) => {
+    window.Carga?.fin()
+    const nuevo = res.headers?.['x-nuevo-token']
+    if (nuevo) renovarAuth(nuevo)
+    mantenerPortal()
+    return res
+  },
+  async (err) => {
     window.Carga?.fin()
     if (!err.response) err.message = 'Sin conexión con el servidor. Revisa tu señal e intenta de nuevo.'
-    if (err.response?.status === 401) {
-      clearAuth()
-      window.location.reload()
+    const cfg = err.config || {}
+    // Sesión vencida: pase nuevo del portal y se repite la petición (sin recargar: lo capturado
+    // en pantalla se conserva). Si el portal también venció, a iniciar sesión y de vuelta aquí.
+    if (err.response?.status === 401 && !String(cfg.url).includes('/auth/sso')) {
+      if (!cfg._reintento && await renovarConPortal()) {
+        cfg._reintento = true
+        cfg.headers = { ...cfg.headers, Authorization: `Bearer ${getToken()}` }
+        return api(cfg)
+      }
+      irAlPortal()
     }
     return Promise.reject(err)
   }

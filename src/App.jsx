@@ -13,7 +13,8 @@ import { DashboardLitigio, DashboardRecursos } from './components/tablero/Dashbo
 import { filtroAQuery, queryAFiltro } from './components/tablero/dal.js'
 import LoginPage from './components/LoginPage.jsx'
 import { ssoLogin } from './api.js'
-import { getToken, getUser, setAuth, clearAuth } from './auth.js'
+import { getToken, getUser, setAuth, clearAuth, vencido } from './auth.js'
+import { renovarConPortal, irAlPortal } from './sesion.js'
 import { direccionesVisibles, buscarRubro, permisos } from './rubros.js'
 
 // La vista actual va en el hash (#/convenios) para que recargar la página o
@@ -26,6 +27,15 @@ export default function App() {
   const [vista, setVista] = useState(vistaDelHash)
   const [ssoLoading, setSsoLoading] = useState(() => !!new URLSearchParams(window.location.search).get('sso_token'))
   const [ssoError, setSsoError] = useState(null)
+  // Al abrir con una sesión guardada que ya venció: renovarla con el portal antes de mostrar nada
+  const [renovando, setRenovando] = useState(() => !!getToken() && vencido(getToken()))
+  useEffect(() => {
+    if (!renovando) return
+    renovarConPortal().then(ok => {
+      if (!ok) return irAlPortal()
+      setToken(getToken()); setUser(getUser()); setRenovando(false)
+    })
+  }, [])
 
   // Entrada desde el portal: ?sso_token=…
   useEffect(() => {
@@ -61,7 +71,7 @@ export default function App() {
 
   const direcciones = useMemo(() => direccionesVisibles(user), [user])
 
-  if (ssoLoading) return (
+  if (ssoLoading || renovando) return (
     <div className="flex items-center justify-center h-screen bg-ine-bg">
       <div className="text-center">
         <div className="w-10 h-10 border-4 border-ine-border border-t-ine-purple rounded-full animate-spin mx-auto mb-3" />
