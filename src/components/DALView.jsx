@@ -6,6 +6,7 @@ import { FranjaAlertas } from './tablero/Tablero.jsx'
 import { UMBRAL_DIAS, alertas as contarAlertas, asuntosLitigio, estatusLitigio, clasificar } from './tablero/dal.js'
 import { EstatusAsunto } from './tablero/Plazos.jsx'
 import { indiceExpedientes, relacionados, clavesExpediente, SECCIONES_RELACION } from './litigio/expedientes.js'
+import { plazosSentencia, vencimientosSentencia, venceSentencia } from './litigio/sentencias.js'
 
 /* ─── CONSTANTS ─────────────────────────────────────────────────────────── */
 const ANOS = ['','2022','2023','2024','2025','2026']
@@ -42,7 +43,12 @@ const textoLista = (c, filas) => (Array.isArray(filas) ? filas : []).map(f => c.
   .map(k => f[k.key] ? (k.type === 'date' ? `${k.label}: ${fmtDate(f[k.key])}` : k.key === 'plazo' ? `${f[k.key]} días` : f[k.key]) : '')
   .filter(Boolean).join(', ')).join(' | ')
 // Estatus de un concepto con vencimiento (pendiente / vencido / cumplido a tiempo…)
-const estatusConcepto = (f) => f.sentido === 'Absolución' || !f.vencimiento ? null : clasificar(f.vencimiento, f.cumplimiento || null)
+// Vencimiento con el que se compara un campo de entrega (puede calcularse)
+const vencDe = (c, row) => (typeof c.entregaBadge === 'function' ? c.entregaBadge(row) : row[c.entregaBadge])
+// (Si el concepto no tiene fecha de cumplimiento propia pero la sentencia ya se entregó al TEPJF,
+// cuenta como cumplido en esa fecha.)
+const estatusConcepto = (f, row) => f.sentido === 'Absolución' || !f.vencimiento ? null
+  : clasificar(f.vencimiento, f.cumplimiento || row?.fechaEntregaTEPJF || null)
 
 /* ─── SHARED UI ─────────────────────────────────────────────────────────── */
 function VBadge({ ds }) {
@@ -92,6 +98,8 @@ function ListaCampo({ schema, value, onChange, form }) {
     if (j !== i) return f
     const n = { ...f, [k]: v }
     if (k === 'plazo' && schema.venceDesde && form?.[schema.venceDesde] && v) n.vencimiento = addDays(form[schema.venceDesde], v)
+    // Absolución: sin plazo, vencimiento ni cumplimiento
+    if (k === 'sentido' && v === 'Absolución') for (const c of schema.columnas) if (c.soloCondena) n[c.key] = ''
     return n
   }))
   return (
@@ -110,7 +118,9 @@ function ListaCampo({ schema, value, onChange, form }) {
               {schema.columnas.map(c => (
                 <div key={c.key} style={c.wide ? { gridColumn:'1 / -1' } : {}}>
                   <span style={{ fontSize:11,fontWeight:600,color:'#454247',display:'block',marginBottom:3 }}>{c.label}</span>
-                  {c.type === 'select' ? (
+                  {c.soloCondena && f.sentido === 'Absolución' ? (
+                    <span className="ine-input" style={{ display:'flex',alignItems:'center',background:'#F7F5F3',color:'#B2B2B2' }}>No aplica</span>
+                  ) : c.type === 'select' ? (
                     <select className="ine-input" value={f[c.key] ?? ''} onChange={e => poner(i, c.key, e.target.value)}>
                       {['', ...c.options].map(o => <option key={o} value={o}>{o || '— Seleccionar —'}</option>)}
                     </select>
@@ -362,13 +372,13 @@ function DetalleRegistro({ pila, setPila, title, schemas, canEdit, onEdit, onClo
 
   const valor = (c) => {
     const v = row[c.key]
-    if (c.entregaBadge) return <EntregaBadge entrega={v} venc={row[c.entregaBadge]} />
+    if (c.entregaBadge) return <EntregaBadge entrega={v} venc={vencDe(c, row)} />
     if (c.isVenc) return <VBadge ds={v} />
     if (c.type === 'checkbox') return v ? 'Sí' : 'No'
     if (c.type === 'lista') return (
       <span style={{ display:'flex',flexDirection:'column',gap:6,marginTop:2 }}>
         {(v || []).map((f, i) => {
-          const est = estatusConcepto(f)
+          const est = estatusConcepto(f, row)
           return (
             <span key={i} style={{ display:'flex',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:8,
               background:'#FBFAF8',border:'1px solid #EDEAE6',borderRadius:8,padding:'6px 10px' }}>
@@ -487,7 +497,7 @@ function DataTable({ schemas, rows, onView, onEdit, onDelete, canEdit, canDelete
                   {c.calc
                     ? (rel ? c.calc(row, rel, ver?.abrir) : null)
                     : c.entregaBadge
-                    ? <EntregaBadge entrega={row[c.key]} venc={row[c.entregaBadge]} />
+                    ? <EntregaBadge entrega={row[c.key]} venc={vencDe(c, row)} />
                     : c.isVenc
                     ? <VBadge ds={row[c.key]} />
                     : c.type === 'checkbox'
@@ -753,12 +763,25 @@ const colRequerims = (row, rel, abrir) => {
   return <Pastilla texto={abiertos ? `${r.length} · ${abiertos} abierto${abiertos > 1 ? 's' : ''}` : `${r.length} · atendidos`} tono={abiertos ? 'pendiente' : 'ok'}
     title={r.length > 1 ? `Ver los ${r.length} requerimientos` : 'Ver el requerimiento'} onClick={abrirLigados(abrir, 'emplaz', row, 'requerims', r)} />
 }
+// Sentencias → plazo y vencimiento (de sus conceptos de condena)
+const colPlazoSentencia = (row) => {
+  const p = plazosSentencia(row)
+  if (!p.length) return <span style={{ color:'#B2B2B2' }}>—</span>
+  if (p.length === 1) return `${p[0]} días`
+  return <Pastilla texto="Varios plazos" tono="neutro" title={`${p.join(', ')} días`} />
+}
+const colVencSentencia = (row) => {
+  const v = vencimientosSentencia(row)
+  if (!v.length) return <span style={{ color:'#B2B2B2' }}>—</span>
+  if (v.length === 1) return fmtDate(v[0])
+  return <Pastilla texto="Varios vencimientos" tono="neutro" title={v.map(fmtDate).join(', ')} />
+}
 // Sentencias → conceptos de condena / absolución (cuántos y cuántos siguen pendientes)
 const colConceptos = (row, rel, abrir) => {
   const c = Array.isArray(row.condenas) ? row.condenas : []
   if (!c.length) return <Pastilla texto="—" tono="vacio" />
   const condenas = c.filter(f => f.sentido !== 'Absolución').length
-  const pendientes = c.filter(f => ['vencido', 'urgente', 'proximo', 'en_plazo'].includes(estatusConcepto(f)?.estatus)).length
+  const pendientes = c.filter(f => ['vencido', 'urgente', 'proximo', 'en_plazo'].includes(estatusConcepto(f, row)?.estatus)).length
   const texto = `${c.length} · ${condenas} condena${condenas === 1 ? '' : 's'}${pendientes ? ` · ${pendientes} pendiente${pendientes === 1 ? '' : 's'}` : ''}`
   return <Pastilla texto={texto} tono={pendientes ? 'pendiente' : 'neutro'} title="Ver los conceptos de la sentencia"
     onClick={abrir && (() => abrir([{ section: 'sentencias', row }]))} />
@@ -816,19 +839,20 @@ const S_NOEMPLAZ = [
 const S_SENTENCIAS = [
   { key:'expediente',        label:'Expediente',       required:true },
   { key:'fechaNotificacion', label:'Fecha Notificación', type:'date' },
-  { key:'plazo',             label:'Plazo (días)',      type:'number' },
-  { key:'fechaVencimiento',  label:'Fecha Vencimiento', type:'date' },
+  // Plazo y vencimiento salen de los conceptos de condena (las absoluciones no tienen plazo)
+  { key:'_plazo',            label:'Plazo',            tableOnly:true, calc: colPlazoSentencia },
+  { key:'_vencimiento',      label:'Vencimiento',      tableOnly:true, calc: colVencSentencia },
   { key:'abogado',           label:'Abogado',          type:'select', catalogo:true, multiple:true },
-  { key:'fechaEntregaTEPJF', label:'Entrega TEPJF',    type:'date', entregaBadge:'fechaVencimiento' },
+  { key:'fechaEntregaTEPJF', label:'Entrega TEPJF',    type:'date', entregaBadge: venceSentencia },
   { key:'condenas',          label:'Conceptos de condena o absolución', type:'lista', wide:true, formOnly:true,
     venceDesde:'fechaNotificacion', renglon:'Concepto', agregar:'Agregar concepto', nuevo:{ sentido:'Condena' },
-    ayuda:'Cada prestación con su sentido y su plazo; el vencimiento se calcula desde la notificación (se puede corregir).',
+    ayuda:'Cada prestación con su sentido. En las condenas, el plazo; el vencimiento se calcula desde la notificación (se puede corregir). Las absoluciones no tienen plazo.',
     columnas:[
       { key:'concepto',     label:'Concepto (prestación)', wide:true },
       { key:'sentido',      label:'Sentido', type:'select', options:['Condena', 'Absolución'] },
-      { key:'plazo',        label:'Plazo (días)', type:'number' },
-      { key:'vencimiento',  label:'Vencimiento', type:'date' },
-      { key:'cumplimiento', label:'Cumplimiento', type:'date' },
+      { key:'plazo',        label:'Plazo (días)', type:'number', soloCondena:true },
+      { key:'vencimiento',  label:'Vencimiento', type:'date', soloCondena:true },
+      { key:'cumplimiento', label:'Cumplimiento', type:'date', soloCondena:true },
     ] },
   { key:'_conceptos',        label:'Conceptos',        tableOnly:true, calc: colConceptos },
   { key:'_incidentes',       label:'Incidentes',       tableOnly:true, calc: colIncidentes },

@@ -3,6 +3,7 @@ import { contar, diasPara } from './Tablero.jsx'
 import { ETAPAS, calcularPlazos, etapaActual, expedienteClave } from '../../recursos/plazos.js'
 import { DETERMINACIONES } from '../../recursos/campos.js'
 import { SECCIONES_RI } from '../../recursos/riCampos.js'
+import { venceSentencia } from '../litigio/sentencias.js'
 
 // Cálculos de los dashboards de Asuntos Laborales. Los usan el dashboard de la dirección,
 // el de cada subdirección y la franja de alertas de cada vista de captura, para que las
@@ -56,7 +57,8 @@ export function clasificar(vence, cierre, cerrado = !!cierre) {
 // todos y cuenta el más tardío). Conciliación no entra: es una audiencia, no un plazo.
 export const TIPOS_LITIGIO = [
   { clave: 'emplaz',     label: 'Emplazamientos', vence: 'vencimiento',      cierre: ['entregaTribunal'] },
-  { clave: 'sentencias', label: 'Sentencias',     vence: 'fechaVencimiento', cierre: ['fechaEntregaTEPJF'] },
+  // Sentencias: el vencimiento sale de sus conceptos de condena (el más próximo sin cumplir)
+  { clave: 'sentencias', label: 'Sentencias',     vence: 'fechaVencimiento', venceDe: venceSentencia, cierre: ['fechaEntregaTEPJF'] },
   { clave: 'requerims',  label: 'Requerimientos', vence: 'fechaVencimiento', cierre: ['fechaNotificacion', 'fechaEntregaTEPJF'] },
   { clave: 'incidentes', label: 'Incidentes',     vence: 'fechaVencimiento', cierre: ['fechaNotificacion'] },
   { clave: 'amparos',    label: 'Amparos',        vence: 'fechaVencimiento', cierre: ['fechaCumplimiento'] },
@@ -74,7 +76,8 @@ export function estatusLitigio(seccion, r) {
   const fechas = t.cierre.map(c => r[c])
   const cerrado = fechas.every(Boolean)
   const cierre = cerrado ? [...fechas].sort().pop() : null
-  return { vence: r[t.vence] || null, cierre, ...clasificar(r[t.vence], cierre, cerrado) }
+  const vence = t.venceDe ? t.venceDe(r) : r[t.vence]
+  return { vence: vence || null, cierre, ...clasificar(vence, cierre, cerrado) }
 }
 
 export function asuntosLitigio(d) {
