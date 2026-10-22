@@ -35,18 +35,19 @@ export function Encabezado({ titulo, subtitulo }) {
 }
 
 // Avisos de plazos: vencidos y por vencer dentro del umbral de la dirección.
+// `umbral` (días): para un rubro que no usa el semáforo (Convenios), "vencen en los próximos N días".
 export function Alertas({ vencidos, porVencer, umbral, que = 'plazos' }) {
   if (!vencidos && !porVencer) {
     return (
       <div className="rounded-lg px-4 py-3 text-sm font-semibold" style={{ background: '#F7F5F3', border: `1px solid ${TINTA.linea}`, color: TINTA.media }}>
-        ✓ Sin {que} vencidos ni por vencer en los próximos {umbral} días.
+        ✓ Sin {que} vencidos ni por vencer{umbral ? ` en los próximos ${umbral} días` : ': todo en tiempo'}.
       </div>
     )
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {vencidos > 0 && <Aviso estado={ESTADO.vencido} num={vencidos} texto={`${vencidos === 1 ? 'vencido' : 'vencidos'} sin atender`} />}
-      {porVencer > 0 && <Aviso estado={ESTADO.porVencer} num={porVencer} texto={`${porVencer === 1 ? 'vence' : 'vencen'} en los próximos ${umbral} días`} />}
+      {porVencer > 0 && <Aviso estado={ESTADO.porVencer} num={porVencer} texto={umbral ? `${porVencer === 1 ? 'vence' : 'vencen'} en los próximos ${umbral} días` : `por vencer (ámbar) o ${porVencer === 1 ? 'vence' : 'vencen'} hoy`} />}
     </div>
   )
 }
@@ -100,7 +101,7 @@ export function Subseccion({ titulo, nota, tono, icono, onVer }) {
 
 // Franja de alertas arriba de la captura de una subdirección: cuántos plazos están vencidos
 // o por vencer y el botón al dashboard de la subdirección. `vencidos === null` mientras carga.
-export function FranjaAlertas({ vencidos, porVencer, umbral, onAbrir }) {
+export function FranjaAlertas({ vencidos, porVencer, onAbrir }) {
   const e = vencidos > 0 ? ESTADO.vencido : porVencer > 0 ? ESTADO.porVencer : ESTADO.neutro
   return (
     <div className="rounded-lg px-3 sm:px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-2 flex-shrink-0" role="status"
@@ -109,7 +110,7 @@ export function FranjaAlertas({ vencidos, porVencer, umbral, onAbrir }) {
         {vencidos === null ? (
           <span className="text-ine-muted">Revisando plazos…</span>
         ) : !vencidos && !porVencer ? (
-          <span style={{ color: TINTA.media }}>✓ Sin plazos vencidos ni por vencer en los próximos {umbral} días</span>
+          <span style={{ color: TINTA.media }}>✓ Sin plazos vencidos ni por vencer: todo en tiempo</span>
         ) : <>
           {vencidos > 0 && (
             <span style={{ color: ESTADO.vencido.texto }}>
@@ -118,7 +119,7 @@ export function FranjaAlertas({ vencidos, porVencer, umbral, onAbrir }) {
           )}
           {porVencer > 0 && (
             <span style={{ color: ESTADO.porVencer.texto }}>
-              <span aria-hidden="true">{ESTADO.porVencer.icono} </span><strong>{fmt(porVencer)}</strong> por vencer en {umbral} días
+              <span aria-hidden="true">{ESTADO.porVencer.icono} </span><strong>{fmt(porVencer)}</strong> por vencer o vencen hoy
             </span>
           )}
         </>}

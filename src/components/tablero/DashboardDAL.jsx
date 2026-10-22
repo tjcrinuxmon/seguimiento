@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Encabezado, Alertas, Subseccion, Panel } from './Tablero.jsx'
 import { MatrizPlazos } from './Plazos.jsx'
 import {
-  UMBRAL_DIAS, TIPOS_LITIGIO, TIPOS_RECURSOS, TIPOS_RI, cargarLitigio, cargarRecursos, cargarRi, asuntosLitigio,
+  TIPOS_LITIGIO, TIPOS_RECURSOS, TIPOS_RI, cargarLitigio, cargarRecursos, cargarRi, asuntosLitigio,
   asuntosRecursos, asuntosRi, expedientesRecursos, alertas, matriz, filtroAQuery,
 } from './dal.js'
 import { TONOS } from '../../rubros.js'
@@ -62,7 +62,7 @@ export default function DashboardDAL({ onNavigate }) {
 
       {t && <>
         {/* Alertas de toda la dirección */}
-        <Alertas vencidos={t.lit.alertas.vencidos + t.rc.alertas.vencidos} porVencer={t.lit.alertas.porVencer + t.rc.alertas.porVencer} umbral={UMBRAL_DIAS} />
+        <Alertas vencidos={t.lit.alertas.vencidos + t.rc.alertas.vencidos} porVencer={t.lit.alertas.porVencer + t.rc.alertas.porVencer} />
         {(t.lit.alertas.vencidos + t.rc.alertas.vencidos + t.lit.alertas.porVencer + t.rc.alertas.porVencer) > 0 && (
           <p className="text-xs text-ine-muted -mt-3">
             Litigio: {t.lit.alertas.vencidos} vencidos y {t.lit.alertas.porVencer} por vencer · Recursos y Consultas: {t.rc.alertas.vencidos} vencidos y {t.rc.alertas.porVencer} por vencer.

@@ -2,9 +2,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { createRicRecord, updateRicRecord, deleteRicRecord, getAbogados } from '../api.js'
 import { SectionView, AbogadosCtx } from '../components/DALView.jsx'
 import { SECCIONES_RI } from './riCampos.js'
-import { cargarRi } from '../components/tablero/dal.js'
+import { cargarRi, estatusRi } from '../components/tablero/dal.js'
 import Abogados from './Abogados.jsx'
 
+// Campos de vencimiento que se pintan con el semáforo → tipo de plazo (TIPOS_RI de dal.js)
+const SEMAFORO_RI = {
+  transparencia: { fechaVencimiento: 'ri_transparencia' },
+  ctrl: { fechaVencimiento: 'ri_ctrl' },
+  requerimientos: { fechaVencimiento: 'ri_requerimientos' },
+  turno_ri: { venceInstruccion: 'ri_instruccion', venceAprobacionJge: 'ri_jge', venceOpinion: 'ri_opinion' },
+}
 const RIC_API = { crear: createRicRecord, actualizar: updateRicRecord, eliminar: deleteRicRecord }
 const PESTANA_KEY = 'seguimiento_ri_pestana'
 const leerPestana = () => {
@@ -40,7 +47,10 @@ export default function RiConsultasView({ user, onDatos }) {
 
   const seccion = SECCIONES_RI.find(s => s.key === activa)
   // En la tabla solo las columnas de `tabla`; el resto, en el formulario y el Excel
-  const campos = useMemo(() => seccion.campos.map(c => ({ ...c, formOnly: !seccion.tabla.includes(c.key) })), [seccion])
+  const campos = useMemo(() => seccion.campos.map(c => {
+    const tipo = SEMAFORO_RI[seccion.key]?.[c.key]
+    return { ...c, formOnly: !seccion.tabla.includes(c.key), ...(tipo ? { semaforo: r => estatusRi(tipo, r) } : {}) }
+  }), [seccion])
 
   return (
     <AbogadosCtx.Provider value={{ abogados }}>

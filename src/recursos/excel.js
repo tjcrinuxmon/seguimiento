@@ -9,7 +9,7 @@ import { calcularPlazos, proximoPlazo, etapaActual, expedienteClave, sumarMeses 
 // Las fechas van como texto dd/mm/aaaa para que no se recorran por zona horaria.
 
 const fecha = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? iso.split('-').reverse().join('/') : '')
-const ESTADO = { vencido: 'Vencido', por_vencer: 'Por vencer', pendiente: 'Pendiente', en_curso: 'En curso', cumplido: 'Cumplido', concluido: 'Concluido' }
+const ESTADO = { vencido: 'Vencido', hoy: 'Vence hoy', por_vencer: 'Por vencer', pendiente: 'En tiempo', en_curso: 'En curso', cumplido: 'Cumplido', concluido: 'Concluido' }
 
 function valor(def, v, abogados) {
   if (def.tipo === 'casilla') return v === true ? 'Sí' : v === false ? 'No' : ''

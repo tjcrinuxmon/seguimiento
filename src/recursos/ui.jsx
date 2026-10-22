@@ -1,5 +1,5 @@
 import React from 'react'
-import { ESTADO } from '../components/tablero/Tablero.jsx'
+import { COLORES } from '../semaforo.js'
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
@@ -11,9 +11,11 @@ export function fmtFecha(iso) {
 }
 
 const ESTILOS = {
-  vencido:    { ...ESTADO.vencido },
-  por_vencer: { ...ESTADO.porVencer },
-  pendiente:  { texto: '#454247', fondo: '#F7F5F3', borde: '#E3DFDA', icono: '' },
+  // Semáforo: verde (en tiempo), ámbar (por vencer), rojo (vence hoy / vencido)
+  vencido:    { ...COLORES.vencido, icono: '⚠' },
+  hoy:        { ...COLORES.hoy, icono: '⚠' },
+  por_vencer: { ...COLORES.ambar, icono: '⏱' },
+  pendiente:  { ...COLORES.verde, icono: '' },
   en_curso:   { texto: '#454247', fondo: '#EFF1F2', borde: '#DCE0E3', icono: '⏳' },
   cumplido:   { texto: '#454247', fondo: '#FFFFFF', borde: '#E3DFDA', icono: '✓' },
   concluido:  { texto: '#828A91', fondo: '#FFFFFF', borde: '#EDEAE6', icono: '✓' },
@@ -26,8 +28,9 @@ export function EstadoPlazo({ plazo, conFecha = false }) {
   const d = plazo.dias
   const texto = {
     vencido:    `Vencido hace ${-d} d`,
-    por_vencer: d === 0 ? 'Vence hoy' : d === 1 ? 'Vence mañana' : `Vence en ${d} días`,
-    pendiente:  `Vence en ${d} días`,
+    hoy:        'Vence hoy',
+    por_vencer: d === 1 ? 'Vence mañana' : `Vence en ${d} días`,
+    pendiente:  `En tiempo · ${d} días`,
     en_curso:   d === 0 ? 'Corre hasta hoy' : `Corre ${d} días más`,
     cumplido:   'Cumplido',
     concluido:  'Plazo concluido',

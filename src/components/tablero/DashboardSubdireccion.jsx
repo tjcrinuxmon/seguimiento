@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Encabezado, Alertas, Panel, Barras, TINTA } from './Tablero.jsx'
 import { MatrizPlazos, CargaAbogados, DetalleAsuntos } from './Plazos.jsx'
 import {
-  UMBRAL_DIAS, URGENTE_DIAS, TIPOS_LITIGIO, TIPOS_RECURSOS, TIPOS_RI, cargarLitigio, cargarRecursos, cargarRi,
+  TIPOS_LITIGIO, TIPOS_RECURSOS, TIPOS_RI, cargarLitigio, cargarRecursos, cargarRi,
   asuntosLitigio, asuntosRecursos, asuntosRi, expedientesRecursos, consultasRi, alertas, matriz, cargaAbogados,
 } from './dal.js'
 
@@ -52,11 +52,11 @@ function DashboardSubdireccion({ titulo, archivo, grupos, cargar, procesar, Extr
       {!t && !error && <div className="ine-card p-5" dangerouslySetInnerHTML={{ __html: window.Carga?.lineas(8) || 'Cargando…' }} />}
 
       {t && <>
-        <Alertas vencidos={t.alertas.vencidos} porVencer={t.alertas.porVencer} umbral={UMBRAL_DIAS} />
+        <Alertas vencidos={t.alertas.vencidos} porVencer={t.alertas.porVencer} />
 
         {t.matrices.map((g, i) => (
           <Panel key={g.titulo || i} titulo={g.titulo ? `Plazos por estatus · ${g.titulo}` : 'Plazos por estatus'}
-            nota={i === 0 ? `Pendientes según los días que faltan (urgente: ${URGENTE_DIAS} días o menos); atendidos según si se cumplió antes o después del vencimiento.` : g.nota}>
+            nota={i === 0 ? 'Semáforo de lo pendiente: verde hasta el 85 % del plazo, ámbar después y rojo el día del vencimiento o ya vencido. Atendidos: si se cumplió antes o después del vencimiento.' : g.nota}>
             <MatrizPlazos m={g.m} onFiltro={onFiltro} />
           </Panel>
         ))}

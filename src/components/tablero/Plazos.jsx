@@ -2,6 +2,7 @@ import React from 'react'
 import * as XLSX from 'xlsx'
 import { ESTADO, TINTA } from './Tablero.jsx'
 import { ESTATUS, GRUPOS, etiquetaEstatus, filtrar } from './dal.js'
+import { COLORES } from '../../semaforo.js'
 import { fmtFecha } from '../../recursos/ui.jsx'
 
 // Piezas de los dashboards de plazos (Asuntos Laborales): matriz tipo × estatus, carga por
@@ -12,9 +13,10 @@ const fmt = (n) => Number(n || 0).toLocaleString('es-MX')
 
 // Color de una celda según el estatus (solo si tiene algo): rojo vencido, ámbar por vencer.
 const TONO_ESTATUS = {
-  vencido: ESTADO.vencido,
-  urgente: ESTADO.porVencer,
-  proximo: { ...ESTADO.porVencer, fondo: '#FFFDF5' },
+  vencido: COLORES.vencido,
+  hoy:     COLORES.hoy,
+  ambar:   COLORES.ambar,
+  verde:   COLORES.verde,
   fuera:   { texto: '#8A6E4B', fondo: '#F7F0E8', borde: '#EADBC8' },
 }
 
@@ -104,7 +106,7 @@ export function CargaAbogados({ filas, onFiltro }) {
   const cols = [
     { clave: 'pendiente',  label: 'Pendientes' },
     { clave: 'vencido',    label: 'Vencidos',    tono: TONO_ESTATUS.vencido },
-    { clave: 'por_vencer', label: 'Por vencer',  tono: TONO_ESTATUS.urgente },
+    { clave: 'por_vencer', label: 'Por vencer',  tono: TONO_ESTATUS.ambar },
     { clave: 'atendido',   label: 'Atendidos',   sep: true },
     { clave: 'fuera',      label: 'Fuera de plazo', tono: TONO_ESTATUS.fuera },
   ]
@@ -147,9 +149,9 @@ export function EstatusAsunto({ a }) {
   const t = TONO_ESTATUS[a.estatus] || ESTADO.neutro
   const texto = {
     vencido:  `Vencido hace ${-a.dias} d`,
-    urgente:  a.dias === 0 ? 'Vence hoy' : a.dias === 1 ? 'Vence mañana' : `Vence en ${a.dias} d`,
-    proximo:  `Vence en ${a.dias} d`,
-    en_plazo: `En plazo · ${a.dias} d`,
+    hoy:      'Vence hoy',
+    ambar:    a.dias === 1 ? 'Vence mañana' : `Vence en ${a.dias} d`,
+    verde:    `En tiempo · ${a.dias} d`,
     a_tiempo: '✓ A tiempo',
     fuera:    `✓ ${a.retraso} d fuera de plazo`,
     sin_fecha:'Sin fecha de vencimiento',

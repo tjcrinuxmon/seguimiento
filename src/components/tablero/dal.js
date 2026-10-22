@@ -4,6 +4,7 @@ import { ETAPAS, calcularPlazos, etapaActual, expedienteClave } from '../../recu
 import { DETERMINACIONES } from '../../recursos/campos.js'
 import { SECCIONES_RI } from '../../recursos/riCampos.js'
 import { venceSentencia } from '../litigio/sentencias.js'
+import { semaforo } from '../../semaforo.js'
 
 // Cálculos de los dashboards de Asuntos Laborales. Los usan el dashboard de la dirección,
 // el de cada subdirección y la franja de alertas de cada vista de captura, para que las
@@ -12,24 +13,24 @@ import { venceSentencia } from '../litigio/sentencias.js'
 // Todo sale de una lista de "asuntos": cada cosa con fecha de vencimiento (un emplazamiento,
 // una sentencia, un plazo de un expediente de Recursos…) con su estatus. De esa lista se
 // arman la matriz de plazos por estatus, la carga por abogado, el detalle filtrado y las alertas.
-export const UMBRAL_DIAS = 7          // "por vencer": vence en esta cantidad de días o menos
-export const URGENTE_DIAS = 3         // dentro de "por vencer", lo que vence en 3 días o menos
+// Lo pendiente se clasifica con el semáforo (src/semaforo.js): en tiempo (verde, hasta el 85 %
+// del plazo), por vencer (ámbar), vence hoy y vencido (rojo).
 export const SECCIONES = ['actores', 'emplaz', 'noemplaz', 'sentencias', 'requerims', 'cumplims', 'incidentes', 'amparos', 'conciliacion', 'oic', 'reencauz']
 
 // Estatus de un asunto, en el orden de las columnas de la matriz
 export const ESTATUS = [
   { clave: 'vencido',   label: 'Vencido',        grupo: 'pendiente' },
-  { clave: 'urgente',   label: `Vence ≤${URGENTE_DIAS} días`, grupo: 'pendiente' },
-  { clave: 'proximo',   label: `${URGENTE_DIAS + 1}–${UMBRAL_DIAS} días`, grupo: 'pendiente' },
-  { clave: 'en_plazo',  label: 'En plazo',       grupo: 'pendiente' },
+  { clave: 'hoy',       label: 'Vence hoy',      grupo: 'pendiente' },
+  { clave: 'ambar',     label: 'Por vencer',     grupo: 'pendiente' },
+  { clave: 'verde',     label: 'En tiempo',      grupo: 'pendiente' },
   { clave: 'a_tiempo',  label: 'A tiempo',       grupo: 'atendido' },
   { clave: 'fuera',     label: 'Fuera de plazo', grupo: 'atendido' },
   { clave: 'sin_fecha', label: 'Sin fecha',      grupo: 'sin_fecha' },
 ]
 // Filtros de estatus que agrupan varios (para clics en totales y en la carga por abogado)
 export const GRUPOS = {
-  pendiente: { label: 'Pendientes',  estatus: ['vencido', 'urgente', 'proximo', 'en_plazo'] },
-  por_vencer:{ label: `Por vencer (≤${UMBRAL_DIAS} días)`, estatus: ['urgente', 'proximo'] },
+  pendiente: { label: 'Pendientes',  estatus: ['vencido', 'hoy', 'ambar', 'verde'] },
+  por_vencer:{ label: 'Por vencer o vence hoy', estatus: ['hoy', 'ambar'] },
   atendido:  { label: 'Atendidos',   estatus: ['a_tiempo', 'fuera'] },
 }
 export const etiquetaEstatus = (f) => GRUPOS[f]?.label || ESTATUS.find(e => e.clave === f)?.label || f
@@ -40,33 +41,43 @@ export const separarAbogados = (s) => String(s || '').split('/').map(x => x.trim
 
 const diasEntre = (desde, hasta) => Math.round((new Date(hasta + 'T00:00:00') - new Date(desde + 'T00:00:00')) / 86400000)
 
-// Estatus de un asunto según su vencimiento y la fecha en que se atendió (si ya se atendió).
-export function clasificar(vence, cierre, cerrado = !!cierre) {
+// Estatus de un asunto según su vencimiento, la fecha en que se atendió (si ya se atendió) y
+// desde cuándo corre el plazo (`desde`, para el semáforo).
+export function clasificar(vence, cierre, cerrado = !!cierre, desde = null) {
   const dias = diasPara(vence)
   if (dias === null) return { estatus: 'sin_fecha', dias: null, retraso: null }
   if (cerrado) {
     const retraso = cierre ? diasEntre(vence, cierre) : 0
     return { estatus: retraso > 0 ? 'fuera' : 'a_tiempo', dias, retraso }
   }
-  const estatus = dias < 0 ? 'vencido' : dias <= URGENTE_DIAS ? 'urgente' : dias <= UMBRAL_DIAS ? 'proximo' : 'en_plazo'
-  return { estatus, dias, retraso: null }
+  return { estatus: semaforo(desde, vence).estado, dias, retraso: null, desde }
 }
 
 // ── Litigio ─────────────────────────────────────────────────────────────────
-// Qué fecha vence y con qué campos se da por atendido cada tipo (si son varios, se necesitan
-// todos y cuenta el más tardío). Conciliación no entra: es una audiencia, no un plazo.
+// Qué fecha vence, desde cuándo corre (`desde`; si falta, vencimiento menos el plazo en días) y
+// con qué campos se da por atendido cada tipo (si son varios, se necesitan todos y cuenta el más
+// tardío). Conciliación no entra: es una audiencia, no un plazo.
 export const TIPOS_LITIGIO = [
-  { clave: 'emplaz',     label: 'Emplazamientos', vence: 'vencimiento',      cierre: ['entregaTribunal'] },
+  { clave: 'emplaz',     label: 'Emplazamientos', vence: 'vencimiento',      desde: 'fechaEmplaz', cierre: ['entregaTribunal'] },
   // Sentencias: el vencimiento sale de sus conceptos de condena (el más próximo sin cumplir)
-  { clave: 'sentencias', label: 'Sentencias',     vence: 'fechaVencimiento', venceDe: venceSentencia, cierre: ['fechaEntregaTEPJF'] },
-  { clave: 'requerims',  label: 'Requerimientos', vence: 'fechaVencimiento', cierre: ['fechaNotificacion', 'fechaEntregaTEPJF'] },
-  { clave: 'incidentes', label: 'Incidentes',     vence: 'fechaVencimiento', cierre: ['fechaNotificacion'] },
-  { clave: 'amparos',    label: 'Amparos',        vence: 'fechaVencimiento', cierre: ['fechaCumplimiento'] },
+  { clave: 'sentencias', label: 'Sentencias',     vence: 'fechaVencimiento', venceDe: venceSentencia, desde: 'fechaNotificacion', cierre: ['fechaEntregaTEPJF'] },
+  { clave: 'requerims',  label: 'Requerimientos', vence: 'fechaVencimiento', desde: 'fechaNotificacion', cierre: ['fechaNotificacion', 'fechaEntregaTEPJF'] },
+  { clave: 'incidentes', label: 'Incidentes',     vence: 'fechaVencimiento', desde: 'fechaNotificacion', cierre: ['fechaNotificacion'] },
+  { clave: 'amparos',    label: 'Amparos',        vence: 'fechaVencimiento', desde: 'fechaNotificacion', cierre: ['fechaCumplimiento'] },
 ]
 
 export async function cargarLitigio() {
   const secciones = await Promise.all(SECCIONES.map(s => getDalSection(s)))
   return Object.fromEntries(SECCIONES.map((s, i) => [s, secciones[i]]))
+}
+
+// Desde cuándo corre un plazo: la fecha capturada o, si falta, el vencimiento menos el plazo en días
+function desdeDe(desde, vence, plazo) {
+  if (desde) return desde
+  const n = Number(plazo)
+  if (!vence || !n) return null
+  const d = new Date(vence + 'T00:00:00'); d.setDate(d.getDate() - n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 // Estatus de un registro de Litigio de una sección con plazo (null si la sección no tiene)
@@ -77,7 +88,7 @@ export function estatusLitigio(seccion, r) {
   const cerrado = fechas.every(Boolean)
   const cierre = cerrado ? [...fechas].sort().pop() : null
   const vence = t.venceDe ? t.venceDe(r) : r[t.vence]
-  return { vence: vence || null, cierre, ...clasificar(vence, cierre, cerrado) }
+  return { vence: vence || null, cierre, ...clasificar(vence, cierre, cerrado, desdeDe(r[t.desde], vence, r.plazo)) }
 }
 
 export function asuntosLitigio(d) {
@@ -109,7 +120,7 @@ export function asuntosRecursos(expedientes, inhabiles) {
     .filter(p => p.quien === 'deaj')
     .map(p => ({
       id: `${x.id}-${p.clave}`, tipo: p.clave, tipoLabel: etiquetaRc[p.clave] || p.label, expediente: expedienteClave(x),
-      abogado: x.abogado || '', abogados: separarAbogados(x.abogado), vence: p.fecha, cierre: p.cuando || null, ...clasificar(p.fecha, p.cuando, p.hecho),
+      abogado: x.abogado || '', abogados: separarAbogados(x.abogado), vence: p.fecha, cierre: p.cuando || null, ...clasificar(p.fecha, p.cuando, p.hecho, p.desde),
     })))
 }
 
@@ -131,12 +142,12 @@ export function expedientesRecursos(expedientes) {
 // estatus CONCLUIDO (o la resolución, en el turno RI); en ese caso cuenta como "a tiempo".
 // `aplica`: si el renglón tiene ese plazo (la opinión jurídica solo si se solicitó).
 export const TIPOS_RI = [
-  { clave: 'ri_transparencia', label: 'Transparencia', seccion: 'transparencia', vence: 'fechaVencimiento', cierre: 'fechaAtencion' },
-  { clave: 'ri_ctrl', label: 'CTRL', seccion: 'ctrl', vence: 'fechaVencimiento', cierre: 'fechaAtencion' },
-  { clave: 'ri_requerimientos', label: 'Requerimientos TEPJF y OIC', seccion: 'requerimientos', vence: 'fechaVencimiento', cierre: 'fechaAtencion' },
-  { clave: 'ri_instruccion', label: 'Turno RI: cerrar instrucción', seccion: 'turno_ri', vence: 'venceInstruccion', cierre: 'fechaProyecto', cerradoCon: 'fechaResolucion' },
-  { clave: 'ri_jge', label: 'Turno RI: aprobación JGE', seccion: 'turno_ri', vence: 'venceAprobacionJge', cierre: 'fechaResolucion' },
-  { clave: 'ri_opinion', label: 'Turno RI: opinión jurídica', seccion: 'turno_ri', vence: 'venceOpinion', cierre: 'fechaOpinion',
+  { clave: 'ri_transparencia', label: 'Transparencia', seccion: 'transparencia', vence: 'fechaVencimiento', desde: 'fechaRecepcion', cierre: 'fechaAtencion' },
+  { clave: 'ri_ctrl', label: 'CTRL', seccion: 'ctrl', vence: 'fechaVencimiento', desde: 'fechaRecepcion', cierre: 'fechaAtencion' },
+  { clave: 'ri_requerimientos', label: 'Requerimientos TEPJF y OIC', seccion: 'requerimientos', vence: 'fechaVencimiento', desde: 'fechaNotificacion', cierre: 'fechaAtencion' },
+  { clave: 'ri_instruccion', label: 'Turno RI: cerrar instrucción', seccion: 'turno_ri', vence: 'venceInstruccion', desde: 'fechaRemisionTurno', cierre: 'fechaProyecto', cerradoCon: 'fechaResolucion' },
+  { clave: 'ri_jge', label: 'Turno RI: aprobación JGE', seccion: 'turno_ri', vence: 'venceAprobacionJge', desde: 'fechaRemisionTurno', cierre: 'fechaResolucion' },
+  { clave: 'ri_opinion', label: 'Turno RI: opinión jurídica', seccion: 'turno_ri', vence: 'venceOpinion', desde: 'solicitudOpinion', cierre: 'fechaOpinion',
     aplica: r => r.solicitudOpinion || r.venceOpinion || r.fechaOpinion },
 ]
 
@@ -145,17 +156,21 @@ export async function cargarRi() {
   return Object.fromEntries(SECCIONES_RI.map((s, i) => [s.key, listas[i]]))
 }
 
+// Estatus de un renglón de RI-Consultas para un tipo de plazo (clave de TIPOS_RI)
+export function estatusRi(clave, r) {
+  const t = TIPOS_RI.find(x => x.clave === clave)
+  if (!t) return null
+  const cierre = r[t.cierre] || null
+  const cerrado = !!cierre || r.estatus === 'CONCLUIDO' || !!(t.cerradoCon && r[t.cerradoCon])
+  return { vence: r[t.vence] || null, cierre, ...clasificar(r[t.vence], cierre, cerrado, r[t.desde] || null) }
+}
+
 export function asuntosRi(store) {
-  return TIPOS_RI.flatMap(t => (store[t.seccion] || []).filter(r => !t.aplica || t.aplica(r)).map(r => {
-    const cierre = r[t.cierre] || null
-    const cerrado = !!cierre || r.estatus === 'CONCLUIDO' || !!(t.cerradoCon && r[t.cerradoCon])
-    return {
-      id: `${t.clave}-${r.id}`, tipo: t.clave, tipoLabel: t.label,
-      expediente: r.expediente || r.numero || r.oficioConsulta || r.idSai || '—',
-      abogado: r.abogado || '', abogados: separarAbogados(r.abogado), vence: r[t.vence] || null, cierre,
-      ...clasificar(r[t.vence], cierre, cerrado),
-    }
-  }))
+  return TIPOS_RI.flatMap(t => (store[t.seccion] || []).filter(r => !t.aplica || t.aplica(r)).map(r => ({
+    id: `${t.clave}-${r.id}`, tipo: t.clave, tipoLabel: t.label,
+    expediente: r.expediente || r.numero || r.oficioConsulta || r.idSai || '—',
+    abogado: r.abogado || '', abogados: separarAbogados(r.abogado), ...estatusRi(t.clave, r),
+  })))
 }
 
 // Consultas por catálogo: en trámite y concluidas (incluye las que no tienen plazo)

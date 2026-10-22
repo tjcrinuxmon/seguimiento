@@ -67,7 +67,7 @@ export default function RecursosView({ user, onDatos }) {
     const t = normalizar(q.trim())
     return filas
       .filter(x => !t || normalizar([x.clave, x.abogado, x.denunciante_nombre, x.denunciado_nombre, x.denunciado_adscripcion, x.conducta].join(' ')).includes(t))
-      .filter(x => !filtro || (filtro === 'vencido' ? x.vencidos > 0 : x.proximo?.estado === 'por_vencer'))
+      .filter(x => !filtro || (filtro === 'vencido' ? x.vencidos > 0 : ['hoy', 'por_vencer'].includes(x.proximo?.estado)))
       .filter(x => GRUPOS_PLS.find(g => g.clave === grupo).es(x))
       .filter(x => !etapaFiltro || x.etapa.clave === etapaFiltro)
       .sort((a, b) => (a.proximo?.dias ?? 1e9) - (b.proximo?.dias ?? 1e9))
@@ -202,7 +202,7 @@ export default function RecursosView({ user, onDatos }) {
                   onKeyDown={ev => { if (ev.key === 'Enter') setAbierto(x) }}
                   className="cursor-pointer hover:bg-ine-bg focus:bg-ine-bg" style={{ borderTop: '1px solid #EDEAE6' }}>
                   <td className="px-3 py-2.5 font-bold text-ine-text whitespace-nowrap"
-                    style={{ borderLeft: `4px solid ${x.vencidos ? '#991B1B' : x.proximo?.estado === 'por_vencer' ? '#D97706' : 'transparent'}` }}>{x.clave}</td>
+                    style={{ borderLeft: `4px solid ${x.vencidos || x.proximo?.estado === 'hoy' ? '#DC2626' : x.proximo?.estado === 'por_vencer' ? '#D97706' : x.proximo?.estado === 'pendiente' ? '#10B981' : 'transparent'}` }}>{x.clave}</td>
                   <td className="px-3 py-2.5 whitespace-nowrap">{x.abogado || '—'}</td>
                   <td className="px-3 py-2.5 whitespace-nowrap">{fmtFecha(x.fecha_recepcion_deaj)}</td>
                   <td className="px-3 py-2.5 whitespace-nowrap">{fmtFecha(sumarMeses(x.fecha_recepcion_deaj, 6))}</td>
@@ -232,7 +232,7 @@ export default function RecursosView({ user, onDatos }) {
             <li key={x.id}>
               <button type="button" onClick={() => setAbierto(x)}
                 className="w-full text-left ine-card px-4 py-3 grid gap-x-4 gap-y-1.5 sm:grid-cols-[1.3fr_1.6fr_1fr_1.3fr] items-center hover:bg-ine-bg transition-colors"
-                style={{ borderLeft: `4px solid ${x.vencidos ? '#991B1B' : x.proximo?.estado === 'por_vencer' ? '#D97706' : '#828A91'}` }}>
+                style={{ borderLeft: `4px solid ${x.vencidos || x.proximo?.estado === 'hoy' ? '#DC2626' : x.proximo?.estado === 'por_vencer' ? '#D97706' : x.proximo?.estado === 'pendiente' ? '#10B981' : '#828A91'}` }}>
                 <span className="min-w-0">
                   <span className="block text-sm font-bold text-ine-text truncate">{x.clave}</span>
                   <span className="block text-xs text-ine-muted truncate">{x.abogado || 'Sin abogado asignado'}</span>

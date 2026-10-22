@@ -3,7 +3,8 @@ import * as XLSX from 'xlsx'
 import { getDalSection, createDalRecord, updateDalRecord, deleteDalRecord, getAbogados } from '../api.js'
 import Abogados from '../recursos/Abogados.jsx'
 import { FranjaAlertas } from './tablero/Tablero.jsx'
-import { UMBRAL_DIAS, alertas as contarAlertas, asuntosLitigio, estatusLitigio, clasificar } from './tablero/dal.js'
+import { alertas as contarAlertas, asuntosLitigio, estatusLitigio, clasificar } from './tablero/dal.js'
+import { COLORES } from '../semaforo.js'
 import { EstatusAsunto } from './tablero/Plazos.jsx'
 import { indiceExpedientes, relacionados, clavesExpediente, SECCIONES_RELACION } from './litigio/expedientes.js'
 import { plazosSentencia, vencimientosSentencia, venceSentencia } from './litigio/sentencias.js'
@@ -43,12 +44,27 @@ const textoLista = (c, filas) => (Array.isArray(filas) ? filas : []).map(f => c.
   .map(k => f[k.key] ? (k.type === 'date' ? `${k.label}: ${fmtDate(f[k.key])}` : k.key === 'plazo' ? `${f[k.key]} días` : f[k.key]) : '')
   .filter(Boolean).join(', ')).join(' | ')
 // Estatus de un concepto con vencimiento (pendiente / vencido / cumplido a tiempo…)
+// Fecha de vencimiento pintada con el semáforo mientras está pendiente (ya atendida: fecha simple)
+const PENDIENTE = ['vencido', 'hoy', 'ambar', 'verde']
+function FechaSemaforo({ fecha, est }) {
+  if (!fecha) return <span style={{ color:'#B2B2B2' }}>—</span>
+  if (!est || !PENDIENTE.includes(est.estatus)) return fmtDate(fecha)
+  const c = COLORES[est.estatus]
+  const nota = est.estatus === 'vencido' ? `+${-est.dias}d` : est.estatus === 'hoy' ? 'hoy' : `${est.dias}d`
+  return (
+    <span title={{ vencido: 'Vencido', hoy: 'Vence hoy', ambar: 'Por vencer', verde: 'En tiempo' }[est.estatus]}
+      style={{ display:'inline-flex',alignItems:'center',gap:4,padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:'nowrap',
+        background:c.fondo,color:c.texto,border:`1px solid ${c.borde}` }}>
+      {fmtDate(fecha)}<span style={{ opacity:0.8 }}>{nota}</span>
+    </span>
+  )
+}
 // Vencimiento con el que se compara un campo de entrega (puede calcularse)
 const vencDe = (c, row) => (typeof c.entregaBadge === 'function' ? c.entregaBadge(row) : row[c.entregaBadge])
 // (Si el concepto no tiene fecha de cumplimiento propia pero la sentencia ya se entregó al TEPJF,
 // cuenta como cumplido en esa fecha.)
 const estatusConcepto = (f, row) => f.sentido === 'Absolución' || !f.vencimiento ? null
-  : clasificar(f.vencimiento, f.cumplimiento || row?.fechaEntregaTEPJF || null)
+  : clasificar(f.vencimiento, f.cumplimiento || row?.fechaEntregaTEPJF || null, !!(f.cumplimiento || row?.fechaEntregaTEPJF), row?.fechaNotificacion || null)
 
 /* ─── SHARED UI ─────────────────────────────────────────────────────────── */
 function VBadge({ ds }) {
@@ -372,6 +388,7 @@ function DetalleRegistro({ pila, setPila, title, schemas, canEdit, onEdit, onClo
 
   const valor = (c) => {
     const v = row[c.key]
+    if (c.semaforo && v) return <FechaSemaforo fecha={v} est={c.semaforo(row)} />
     if (c.entregaBadge) return <EntregaBadge entrega={v} venc={vencDe(c, row)} />
     if (c.isVenc) return <VBadge ds={v} />
     if (c.type === 'checkbox') return v ? 'Sí' : 'No'
@@ -496,6 +513,8 @@ function DataTable({ schemas, rows, onView, onEdit, onDelete, canEdit, canDelete
                   style={{ padding:'10px 12px',whiteSpace:'nowrap',maxWidth:c.wide ? 320 : 200,overflow:'hidden',textOverflow:'ellipsis' }}>
                   {c.calc
                     ? (rel ? c.calc(row, rel, ver?.abrir) : null)
+                    : c.semaforo
+                    ? <FechaSemaforo fecha={row[c.key]} est={c.semaforo(row)} />
                     : c.entregaBadge
                     ? <EntregaBadge entrega={row[c.key]} venc={vencDe(c, row)} />
                     : c.isVenc
@@ -773,7 +792,7 @@ const colPlazoSentencia = (row) => {
 const colVencSentencia = (row) => {
   const v = vencimientosSentencia(row)
   if (!v.length) return <span style={{ color:'#B2B2B2' }}>—</span>
-  if (v.length === 1) return fmtDate(v[0])
+  if (v.length === 1) return <FechaSemaforo fecha={v[0]} est={estatusLitigio('sentencias', row)} />
   return <Pastilla texto="Varios vencimientos" tono="neutro" title={v.map(fmtDate).join(', ')} />
 }
 // Sentencias → conceptos de condena / absolución (cuántos y cuántos siguen pendientes)
@@ -781,7 +800,7 @@ const colConceptos = (row, rel, abrir) => {
   const c = Array.isArray(row.condenas) ? row.condenas : []
   if (!c.length) return <Pastilla texto="—" tono="vacio" />
   const condenas = c.filter(f => f.sentido !== 'Absolución').length
-  const pendientes = c.filter(f => ['vencido', 'urgente', 'proximo', 'en_plazo'].includes(estatusConcepto(f, row)?.estatus)).length
+  const pendientes = c.filter(f => ['vencido', 'hoy', 'ambar', 'verde'].includes(estatusConcepto(f, row)?.estatus)).length
   const texto = `${c.length} · ${condenas} condena${condenas === 1 ? '' : 's'}${pendientes ? ` · ${pendientes} pendiente${pendientes === 1 ? '' : 's'}` : ''}`
   return <Pastilla texto={texto} tono={pendientes ? 'pendiente' : 'neutro'} title="Ver los conceptos de la sentencia"
     onClick={abrir && (() => abrir([{ section: 'sentencias', row }]))} />
@@ -820,7 +839,7 @@ const S_EMPLAZ = [
   { key:'abogado',         label:'Abogado',         type:'select', catalogo:true, multiple:true },
   { key:'entregaFicha',    label:'Entrega Ficha',   type:'date' },
   { key:'revision',        label:'Revisión',        type:'date' },
-  { key:'vencimiento',     label:'Vencimiento',     type:'date' },
+  { key:'vencimiento',     label:'Vencimiento',     type:'date', semaforo: r => estatusLitigio('emplaz', r) },
   { key:'entregaTribunal', label:'Entrega Tribunal', type:'date', entregaBadge:'vencimiento' },
   { key:'medioEntrega',    label:'Medio Entrega',   type:'select',
     options:['','Física','Paquetería DHL','Auxilio Jurisdiccional'] },
@@ -861,7 +880,7 @@ const S_SENTENCIAS = [
 const S_REQUERIMS = [
   { key:'expediente',        label:'Expediente',        required:true },
   { key:'plazo',             label:'Plazo (días)',       type:'number' },
-  { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date' },
+  { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date', semaforo: r => estatusLitigio('requerims', r) },
   { key:'fechaNotificacion', label:'Fecha Notificación', type:'date' },
   { key:'abogado',           label:'Abogado',           type:'select', catalogo:true, multiple:true },
   { key:'fechaEntregaTEPJF', label:'Entrega TEPJF',     type:'date', entregaBadge:'fechaVencimiento' },
@@ -885,7 +904,7 @@ const S_CUMPLIMS = [
 ]
 const S_INCIDENTES = [
   { key:'expediente',        label:'Expediente',        required:true },
-  { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date' },
+  { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date', semaforo: r => estatusLitigio('incidentes', r) },
   { key:'plazo',             label:'Plazo (días)',       type:'number' },
   { key:'fechaNotificacion', label:'Fecha Notificación', type:'date', entregaBadge:'fechaVencimiento' },
   { key:'abogado',           label:'Abogado',           type:'select', catalogo:true, multiple:true },
@@ -894,7 +913,7 @@ const S_AMPAROS = [
   { key:'expediente',        label:'Expediente',        required:true },
   { key:'actor',             label:'Actor' },
   { key:'plazo',             label:'Plazo (días)',       type:'number' },
-  { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date' },
+  { key:'fechaVencimiento',  label:'Fecha Vencimiento',  type:'date', semaforo: r => estatusLitigio('amparos', r) },
   { key:'fechaNotificacion', label:'Fecha Notificación', type:'date' },
   { key:'abogado',           label:'Abogado',           type:'select', catalogo:true, multiple:true },
   { key:'tribunal',          label:'Tribunal' },
@@ -1078,8 +1097,7 @@ export default function DALView({ user, onDashboard }) {
     <RelacionesCtx.Provider value={relaciones}>
     <div style={{ display:'flex',flexDirection:'column',gap:12,height:'100%' }}>
     {!loadError && (
-      <FranjaAlertas vencidos={alertas ? alertas.vencidos : null} porVencer={alertas?.porVencer}
-        umbral={UMBRAL_DIAS} onAbrir={onDashboard} />
+      <FranjaAlertas vencidos={alertas ? alertas.vencidos : null} porVencer={alertas?.porVencer} onAbrir={onDashboard} />
     )}
     <div style={{ display:'flex',flexDirection:'column',overflow:'hidden',
       flex:1,minHeight:420,borderRadius:10,border:'1px solid #E3DFDA',

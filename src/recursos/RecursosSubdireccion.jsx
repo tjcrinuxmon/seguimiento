@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import RecursosView from './RecursosView.jsx'
 import RiConsultasView from './RiConsultasView.jsx'
 import { FranjaAlertas } from '../components/tablero/Tablero.jsx'
-import { UMBRAL_DIAS, alertas, asuntosRecursos, asuntosRi, cargarRecursos, cargarRi } from '../components/tablero/dal.js'
+import { alertas, asuntosRecursos, asuntosRi, cargarRecursos, cargarRi } from '../components/tablero/dal.js'
 
 export const PARTES_RC = [
   { key: 'pls', label: 'PLS', nombre: 'Procedimiento Laboral Sancionador' },
@@ -33,8 +33,7 @@ export default function RecursosSubdireccion({ user, parte, onParte, onDashboard
   return (
     <div className="fade-in max-w-6xl mx-auto flex flex-col gap-4">
       {!fallo && (
-        <FranjaAlertas vencidos={cuenta ? cuenta.vencidos : null} porVencer={cuenta?.porVencer}
-          umbral={UMBRAL_DIAS} onAbrir={onDashboard} />
+        <FranjaAlertas vencidos={cuenta ? cuenta.vencidos : null} porVencer={cuenta?.porVencer} onAbrir={onDashboard} />
       )}
 
       <div className="flex rounded-lg overflow-hidden self-start" role="tablist" aria-label="Parte de la subdirección"

@@ -20,7 +20,7 @@
 //
 // Funciones puras (sin React) para poder probarlas por separado.
 
-export const UMBRAL_DIAS = 7   // "por vencer": vence en esta cantidad de días naturales o menos
+import { semaforo } from '../semaforo.js'
 
 // ─── Fechas (siempre AAAA-MM-DD, en hora local) ───────────────────────────────
 const pad = (n) => String(n).padStart(2, '0')
@@ -73,8 +73,11 @@ export function diasEntre(desdeIso, hastaIso) {
 }
 
 // ─── Plazos de un expediente ──────────────────────────────────────────────────
-// Cada plazo: { clave, etapa, label, fecha, quien: 'deaj' | 'partes', hecho, cuando, nota }
+// Cada plazo: { clave, etapa, label, desde, fecha, quien: 'deaj' | 'partes', hecho, cuando, nota }
+//   - desde: cuándo empieza a correr (para el semáforo, src/semaforo.js).
 //   - cuando: fecha en que se cumplió (para saber si fue a tiempo), si está hecho.
+//   Estado de lo pendiente de la DEAJ (semáforo): pendiente (verde), por_vencer (ámbar),
+//   hoy (vence hoy, rojo), vencido (rojo).
 //   - 'deaj': algo que nos toca hacer; vence si pasa la fecha y no está hecho.
 //   - 'partes': un plazo que corre para las partes; solo informa cuándo termina.
 export function calcularPlazos(e, inhabiles = new Set()) {
@@ -85,43 +88,43 @@ export function calcularPlazos(e, inhabiles = new Set()) {
   const termino = sumarMeses(e.fecha_recepcion_deaj, 6)
   if (termino) {
     add({ clave: 'acuerdo_listo', etapa: 'determinacion', label: 'Acuerdo de inicio / no inicio listo (5º mes)',
-      fecha: sumarMeses(termino, -1), quien: 'deaj', hecho: !!e.fecha_acuerdo_determinacion || notificado,
+      desde: e.fecha_recepcion_deaj, fecha: sumarMeses(termino, -1), quien: 'deaj', hecho: !!e.fecha_acuerdo_determinacion || notificado,
       cuando: e.fecha_acuerdo_determinacion || e.fecha_notificacion_determinacion || null })
     add({ clave: 'revision', etapa: 'determinacion', label: 'Revisión del acuerdo terminada',
-      fecha: sumarDias(termino, -15), quien: 'deaj', hecho: !!e.fecha_acuerdo_determinacion || notificado,
+      desde: e.fecha_recepcion_deaj, fecha: sumarDias(termino, -15), quien: 'deaj', hecho: !!e.fecha_acuerdo_determinacion || notificado,
       cuando: e.fecha_acuerdo_determinacion || e.fecha_notificacion_determinacion || null })
     add({ clave: 'termino', etapa: 'determinacion', label: 'Término: notificar acuerdo de inicio / no inicio',
-      fecha: termino, quien: 'deaj', hecho: notificado, cuando: e.fecha_notificacion_determinacion || null,
+      desde: e.fecha_recepcion_deaj, fecha: termino, quien: 'deaj', hecho: notificado, cuando: e.fecha_notificacion_determinacion || null,
       nota: esHabil(termino, inhabiles) ? null : 'El término cae en día inhábil.' })
   }
 
   if (notificado) {
     add({ clave: 'recurso', etapa: 'determinacion', label: 'Plazo para interponer recurso de inconformidad',
-      fecha: sumarHabiles(e.fecha_notificacion_determinacion, 10, inhabiles), quien: 'partes' })
+      desde: e.fecha_notificacion_determinacion, fecha: sumarHabiles(e.fecha_notificacion_determinacion, 10, inhabiles), quien: 'partes' })
   }
 
   // Sustanciación: solo si se determinó iniciar el procedimiento
   if (e.determinacion === 'inicio') {
     if (notificado) {
       add({ clave: 'contestacion', etapa: 'sustanciacion', label: 'Contestar y ofrecer pruebas (10 días)',
-        fecha: sumarHabiles(e.fecha_notificacion_determinacion, 10, inhabiles), quien: 'partes',
+        desde: e.fecha_notificacion_determinacion, fecha: sumarHabiles(e.fecha_notificacion_determinacion, 10, inhabiles), quien: 'partes',
         hecho: !!e.fecha_contestacion, cuando: e.fecha_contestacion || null })
     }
     if (e.fecha_notificacion_alegatos) {
       add({ clave: 'alegatos', etapa: 'sustanciacion', label: 'Formular alegatos (5 días)',
-        fecha: sumarHabiles(e.fecha_notificacion_alegatos, 5, inhabiles), quien: 'partes',
+        desde: e.fecha_notificacion_alegatos, fecha: sumarHabiles(e.fecha_notificacion_alegatos, 5, inhabiles), quien: 'partes',
         hecho: !!e.fecha_alegatos, cuando: e.fecha_alegatos || null })
     }
     if (e.fecha_cierre_instruccion) {
       const proyecto = sumarHabiles(e.fecha_cierre_instruccion, 25, inhabiles)
       add({ clave: 'proyecto', etapa: 'sustanciacion', label: 'Elaborar el proyecto de resolución (25 días)',
-        fecha: proyecto, quien: 'deaj', hecho: !!e.fecha_acuerdo_resolucion, cuando: e.fecha_acuerdo_resolucion || null })
+        desde: e.fecha_cierre_instruccion, fecha: proyecto, quien: 'deaj', hecho: !!e.fecha_acuerdo_resolucion, cuando: e.fecha_acuerdo_resolucion || null })
       add({ clave: 'envio_se', etapa: 'sustanciacion', label: 'Enviar la resolución a la Secretaría Ejecutiva (10 días)',
-        fecha: sumarHabiles(proyecto, 10, inhabiles), quien: 'deaj', hecho: !!e.fecha_envio_se, cuando: e.fecha_envio_se || null })
+        desde: proyecto, fecha: sumarHabiles(proyecto, 10, inhabiles), quien: 'deaj', hecho: !!e.fecha_envio_se, cuando: e.fecha_envio_se || null })
     }
     if (e.fecha_aprobacion_se) {
       add({ clave: 'notificacion_resolucion', etapa: 'sustanciacion', label: 'Notificar la resolución (10 días)',
-        fecha: sumarHabiles(e.fecha_aprobacion_se, 10, inhabiles), quien: 'deaj',
+        desde: e.fecha_aprobacion_se, fecha: sumarHabiles(e.fecha_aprobacion_se, 10, inhabiles), quien: 'deaj',
         hecho: !!e.fecha_notificacion_resolucion, cuando: e.fecha_notificacion_resolucion || null })
     }
   }
@@ -132,16 +135,14 @@ export function calcularPlazos(e, inhabiles = new Set()) {
     let estado
     if (x.hecho) estado = 'cumplido'
     else if (x.quien === 'partes') estado = dias < 0 ? 'concluido' : 'en_curso'
-    else if (dias < 0) estado = 'vencido'
-    else if (dias <= UMBRAL_DIAS) estado = 'por_vencer'
-    else estado = 'pendiente'
+    else estado = { vencido: 'vencido', hoy: 'hoy', ambar: 'por_vencer', verde: 'pendiente' }[semaforo(x.desde, x.fecha, hoy).estado]
     return { ...x, dias, estado }
   })
 }
 
 // El plazo abierto más urgente (lo que hay que vigilar primero).
 export function proximoPlazo(plazos) {
-  const abiertos = plazos.filter(x => ['vencido', 'por_vencer', 'pendiente', 'en_curso'].includes(x.estado))
+  const abiertos = plazos.filter(x => ['vencido', 'hoy', 'por_vencer', 'pendiente', 'en_curso'].includes(x.estado))
   return abiertos.sort((a, b) => a.dias - b.dias)[0] || null
 }
 
