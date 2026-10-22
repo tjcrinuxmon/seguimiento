@@ -11,6 +11,7 @@ import { dirname, join } from 'path'
 import db from './db.js'
 import { permisos } from './src/rubros.js'
 import { renombrarEnRegistros } from './scripts/abogados.js'
+import { clavesExpediente } from './src/components/litigio/expedientes.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -179,6 +180,17 @@ const seccionValida = (req, res, next) =>
 
 const filaDal = (r) => ({ id: r.id, ...JSON.parse(r.data) })
 
+// Secciones de Litigio con un solo registro por expediente: si ya hay otro, 409 con su id
+const UNICO_POR_EXPEDIENTE = { sentencias: 'una sentencia' }
+function duplicadoDal(section, expediente, id = null) {
+  if (!UNICO_POR_EXPEDIENTE[section]) return null
+  const claves = clavesExpediente(expediente)
+  if (!claves.length) return null
+  return db.prepare('SELECT id, data FROM dal_records WHERE section = ?').all(section).map(filaDal)
+    .find(r => r.id !== Number(id) && clavesExpediente(r.expediente).some(k => claves.includes(k))) || null
+}
+const avisoDuplicado = (section, r) => ({ error: `El expediente ${r.expediente} ya tiene ${UNICO_POR_EXPEDIENTE[section]} registrada; modifica la existente.`, existente: r.id })
+
 app.get('/api/dal/:section', exigir('litigio'), seccionValida, (req, res) => {
   const rows = db.prepare('SELECT id, data FROM dal_records WHERE section = ? ORDER BY id ASC').all(req.params.section)
   res.json(rows.map(filaDal))
@@ -186,6 +198,8 @@ app.get('/api/dal/:section', exigir('litigio'), seccionValida, (req, res) => {
 
 app.post('/api/dal/:section', exigir('litigio'), seccionValida, (req, res) => {
   const { id: _id, ...data } = req.body || {}
+  const dup = duplicadoDal(req.params.section, data.expediente)
+  if (dup) return res.status(409).json(avisoDuplicado(req.params.section, dup))
   const result = db.prepare('INSERT INTO dal_records (section, data) VALUES (?, ?)').run(req.params.section, JSON.stringify(data))
   res.status(201).json(filaDal(db.prepare('SELECT id, data FROM dal_records WHERE id = ?').get(result.lastInsertRowid)))
 })
@@ -194,6 +208,11 @@ app.put('/api/dal/:section/:id', exigir('litigio'), seccionValida, (req, res) =>
   const row = db.prepare('SELECT id FROM dal_records WHERE id = ? AND section = ?').get(req.params.id, req.params.section)
   if (!row) return res.status(404).json({ error: 'Registro no encontrado' })
   const { id: _id, ...data } = req.body || {}
+  // Solo si cambia el expediente (hay expedientes con dos sentencias de antes)
+  const previo = filaDal(db.prepare('SELECT id, data FROM dal_records WHERE id = ?').get(req.params.id))
+  const cambia = clavesExpediente(previo.expediente).join() !== clavesExpediente(data.expediente).join()
+  const dup = cambia && duplicadoDal(req.params.section, data.expediente, req.params.id)
+  if (dup) return res.status(409).json(avisoDuplicado(req.params.section, dup))
   db.prepare('UPDATE dal_records SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(JSON.stringify(data), req.params.id)
   res.json(filaDal(db.prepare('SELECT id, data FROM dal_records WHERE id = ?').get(req.params.id)))
 })

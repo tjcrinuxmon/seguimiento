@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import { getDalSection, createDalRecord, updateDalRecord, deleteDalRecord, getAbogados } from '../api.js'
 import Abogados from '../recursos/Abogados.jsx'
 import { FranjaAlertas } from './tablero/Tablero.jsx'
-import { UMBRAL_DIAS, alertas as contarAlertas, asuntosLitigio, estatusLitigio } from './tablero/dal.js'
+import { UMBRAL_DIAS, alertas as contarAlertas, asuntosLitigio, estatusLitigio, clasificar } from './tablero/dal.js'
 import { EstatusAsunto } from './tablero/Plazos.jsx'
 import { indiceExpedientes, relacionados, clavesExpediente, SECCIONES_RELACION } from './litigio/expedientes.js'
 
@@ -35,6 +35,14 @@ const daysUntil = ds => {
   const t = new Date(); t.setHours(0,0,0,0)
   return Math.round((new Date(ds + 'T00:00:00') - t) / 86400000)
 }
+
+// Listas dentro de un registro (p. ej. los conceptos de condena de una sentencia):
+// type 'lista' con `columnas`. En el Excel van en una celda: "concepto, sentido, … | …".
+const textoLista = (c, filas) => (Array.isArray(filas) ? filas : []).map(f => c.columnas
+  .map(k => f[k.key] ? (k.type === 'date' ? `${k.label}: ${fmtDate(f[k.key])}` : k.key === 'plazo' ? `${f[k.key]} días` : f[k.key]) : '')
+  .filter(Boolean).join(', ')).join(' | ')
+// Estatus de un concepto con vencimiento (pendiente / vencido / cumplido a tiempo…)
+const estatusConcepto = (f) => f.sentido === 'Absolución' || !f.vencimiento ? null : clasificar(f.vencimiento, f.cumplimiento || null)
 
 /* ─── SHARED UI ─────────────────────────────────────────────────────────── */
 function VBadge({ ds }) {
@@ -76,7 +84,54 @@ function EntregaBadge({ entrega, venc }) {
   )
 }
 
-function FieldInput({ schema, value, onChange }) {
+// Lista editable de renglones dentro del formulario. Si la lista tiene `venceDesde` (un campo de
+// fecha del registro), al capturar el plazo de un renglón se calcula su vencimiento (editable).
+function ListaCampo({ schema, value, onChange, form }) {
+  const filas = Array.isArray(value) ? value : []
+  const poner = (i, k, v) => onChange(filas.map((f, j) => {
+    if (j !== i) return f
+    const n = { ...f, [k]: v }
+    if (k === 'plazo' && schema.venceDesde && form?.[schema.venceDesde] && v) n.vencimiento = addDays(form[schema.venceDesde], v)
+    return n
+  }))
+  return (
+    <div>
+      <label style={{ fontSize: 12, fontWeight: 700, color: '#454247', display: 'block', marginBottom: 2 }}>{schema.label}</label>
+      {schema.ayuda && <p style={{ fontSize: 11, color: '#828A91', margin: '0 0 8px' }}>{schema.ayuda}</p>}
+      <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
+        {filas.map((f, i) => (
+          <div key={i} style={{ background:'#FBFAF8',border:'1px solid #EDEAE6',borderRadius:8,padding:10 }}>
+            <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6 }}>
+              <span style={{ fontSize:11,fontWeight:700,color:'#828A91' }}>{schema.renglon || 'Renglón'} {i + 1}</span>
+              <button type="button" onClick={() => onChange(filas.filter((_, j) => j !== i))}
+                style={{ border:'none',background:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:'#991B1B' }}>Quitar</button>
+            </div>
+            <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))',gap:8 }}>
+              {schema.columnas.map(c => (
+                <div key={c.key} style={c.wide ? { gridColumn:'1 / -1' } : {}}>
+                  <span style={{ fontSize:11,fontWeight:600,color:'#454247',display:'block',marginBottom:3 }}>{c.label}</span>
+                  {c.type === 'select' ? (
+                    <select className="ine-input" value={f[c.key] ?? ''} onChange={e => poner(i, c.key, e.target.value)}>
+                      {['', ...c.options].map(o => <option key={o} value={o}>{o || '— Seleccionar —'}</option>)}
+                    </select>
+                  ) : (
+                    <input className="ine-input" type={c.type || 'text'} value={f[c.key] ?? ''} min={c.type === 'number' ? 0 : undefined}
+                      onChange={e => poner(i, c.key, e.target.value)} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="btn-outline" style={{ marginTop:8,fontSize:12,padding:'6px 12px' }}
+        onClick={() => onChange([...filas, { ...(schema.nuevo || {}) }])}>+ {schema.agregar || 'Agregar'}</button>
+    </div>
+  )
+}
+
+function FieldInput({ schema, value, onChange, form }) {
+  if (schema.type === 'lista') return <ListaCampo schema={schema} value={value} onChange={onChange} form={form} />
   const { label, type, options, required, rows } = schema
   const abogadosCtx = React.useContext(AbogadosCtx)
   const relCtx = React.useContext(RelacionesCtx)
@@ -200,13 +255,17 @@ function ConfirmDelete({ onConfirm, onCancel }) {
 function RecordForm({ title, schemas, initial, onSave, onClose, saving }) {
   const [form, setForm] = useState(() => {
     const d = {}
-    schemas.forEach(s => { d[s.key] = initial?.[s.key] ?? (s.type === 'checkbox' ? false : '') })
+    schemas.forEach(s => { d[s.key] = initial?.[s.key] ?? (s.type === 'checkbox' ? false : s.type === 'lista' ? [] : '') })
     return d
   })
   const set = (key, val) => setForm(f => {
     const n = { ...f, [key]: val }
     if ((key === 'plazo' || key === 'fechaNotificacion') && n.plazo && n.fechaNotificacion)
       n.fechaVencimiento = addDays(n.fechaNotificacion, n.plazo)
+    // Listas cuyo vencimiento se cuenta desde este campo: se recalculan los renglones con plazo
+    for (const l of schemas.filter(x => x.type === 'lista' && x.venceDesde === key && val)) {
+      n[l.key] = (n[l.key] || []).map(f => (f.plazo ? { ...f, vencimiento: addDays(val, f.plazo) } : f))
+    }
     return n
   })
   const handleSave = () => {
@@ -219,7 +278,7 @@ function RecordForm({ title, schemas, initial, onSave, onClose, saving }) {
       <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:16 }}>
         {schemas.filter(s => !s.tableOnly).map(s => (
           <div key={s.key} style={s.wide ? { gridColumn:'1 / -1' } : {}}>
-            <FieldInput schema={s} value={form[s.key]} onChange={v => set(s.key, v)} />
+            <FieldInput schema={s} value={form[s.key]} onChange={v => set(s.key, v)} form={form} />
           </div>
         ))}
       </div>
@@ -306,12 +365,33 @@ function DetalleRegistro({ pila, setPila, title, schemas, canEdit, onEdit, onClo
     if (c.entregaBadge) return <EntregaBadge entrega={v} venc={row[c.entregaBadge]} />
     if (c.isVenc) return <VBadge ds={v} />
     if (c.type === 'checkbox') return v ? 'Sí' : 'No'
+    if (c.type === 'lista') return (
+      <span style={{ display:'flex',flexDirection:'column',gap:6,marginTop:2 }}>
+        {(v || []).map((f, i) => {
+          const est = estatusConcepto(f)
+          return (
+            <span key={i} style={{ display:'flex',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:8,
+              background:'#FBFAF8',border:'1px solid #EDEAE6',borderRadius:8,padding:'6px 10px' }}>
+              <span style={{ fontSize:13 }}>
+                <strong>{f.concepto || '(sin concepto)'}</strong>
+                <span style={{ color:'#828A91' }}>
+                  {[f.sentido, f.plazo && `${f.plazo} días`, f.vencimiento && `vence ${fmtDate(f.vencimiento)}`,
+                    f.cumplimiento && `cumplido ${fmtDate(f.cumplimiento)}`].filter(Boolean).map(x => ` · ${x}`).join('')}
+                </span>
+              </span>
+              {est && est.estatus !== 'sin_fecha' && <EstatusAsunto a={est} />}
+            </span>
+          )
+        })}
+      </span>
+    )
     if (v === undefined || v === null || v === '') return <span style={{ color:'#B2B2B2' }}>—</span>
     if (c.type === 'date') return fmtDate(v)
     return <span style={{ whiteSpace:'pre-wrap',overflowWrap:'anywhere' }}>{String(v)}</span>
   }
   // Primero los campos con algo capturado; los vacíos al final, para que lo importante se vea
-  const llenos = sch.filter(c => !c.tableOnly && row[c.key] !== undefined && row[c.key] !== null && row[c.key] !== '')
+  const vacio = (v) => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)
+  const llenos = sch.filter(c => !c.tableOnly && !vacio(row[c.key]))
   const vacios = sch.filter(c => !c.tableOnly && !llenos.includes(c))
   const Campo = ({ c }) => (
     <div style={c.wide || c.type === 'textarea' ? { gridColumn:'1 / -1' } : {}}>
@@ -330,7 +410,7 @@ function DetalleRegistro({ pila, setPila, title, schemas, canEdit, onEdit, onClo
           rel.actualizar(section, guardado)
           setPila(p => [...p.slice(0, -1), { section, row: guardado }])
           setEditando(false)
-        } catch { alert('Error al guardar el registro') }
+        } catch (e) { alert(e?.response?.data?.error || 'Error al guardar el registro') }
         finally { setGuardando(false) }
       }} />
   )
@@ -445,6 +525,8 @@ function DataTable({ schemas, rows, onView, onEdit, onDelete, canEdit, canDelete
 }
 
 const PAGE_SIZE = 10
+// Secciones con un solo registro por expediente (texto para el aviso)
+const UNICO_POR_EXPEDIENTE = { sentencias: 'una sentencia' }
 const DAL_API = { crear: createDalRecord, actualizar: updateDalRecord, eliminar: deleteDalRecord }
 
 // Tabla de captura de una sección (buscar, paginar, Excel, alta/edición/baja). `api` dice
@@ -469,7 +551,7 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
     if (hasAnoField && anoFilter) result = result.filter(r => r.ano === anoFilter)
     if (!search.trim()) return result
     const q = search.toLowerCase()
-    return result.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)))
+    return result.filter(r => Object.values(r).some(v => (v && typeof v === 'object' ? JSON.stringify(v) : String(v)).toLowerCase().includes(q)))
   }, [records, search, anoFilter, hasAnoField])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -483,7 +565,7 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
     const cols = schemas.filter(s => !s.tableOnly)
     const data = filtered.map(row => {
       const obj = {}
-      cols.forEach(c => { obj[c.label] = row[c.key] ?? '' })
+      cols.forEach(c => { obj[c.label] = c.type === 'lista' ? textoLista(c, row[c.key]) : (row[c.key] ?? '') })
       return obj
     })
     const ws = XLSX.utils.json_to_sheet(data)
@@ -492,7 +574,16 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
     XLSX.writeFile(wb, `${section}_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
+  // Secciones con un solo registro por expediente: si ya existe, se avisa y se ofrece modificarlo
+  const [duplicado, setDuplicado] = useState(null)
   const handleSave = async (form) => {
+    // (Al editar sin cambiar el expediente no se revisa: hay expedientes con dos sentencias de antes)
+    const mismoExpediente = editing && clavesExpediente(editing.expediente).join() === clavesExpediente(form.expediente).join()
+    if (UNICO_POR_EXPEDIENTE[section] && !mismoExpediente) {
+      const claves = clavesExpediente(form.expediente)
+      const existente = records.find(r => (!editing || r.id !== editing.id) && clavesExpediente(r.expediente).some(k => claves.includes(k)))
+      if (existente) { setDuplicado(existente); return }
+    }
     setSaving(true)
     try {
       if (editing) {
@@ -503,7 +594,7 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
         onUpdate([...records, created])
       }
       setShowForm(false); setEditing(null)
-    } catch { alert('Error al guardar el registro') }
+    } catch (e) { alert(e?.response?.data?.error || 'Error al guardar el registro') }
     finally { setSaving(false) }
   }
 
@@ -593,13 +684,28 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
       </div>
 
       {showForm && (
-        <RecordForm
+        <RecordForm key={editing?.id ?? 'nuevo'}
           title={editing ? `Editar — ${title}` : `Nuevo — ${title}`}
           schemas={schemas} initial={editing}
           onSave={handleSave} onClose={() => { setShowForm(false); setEditing(null) }}
           saving={saving} />
       )}
       {deleting && <ConfirmDelete onConfirm={handleDelete} onCancel={() => setDeleting(null)} />}
+      {duplicado && (
+        <div style={{ position:'fixed',inset:0,zIndex:220,display:'flex',alignItems:'center',justifyContent:'center',padding:16,background:'rgba(42,18,57,.55)' }}>
+          <div className="ine-card" role="alertdialog" aria-labelledby="dup-titulo" style={{ padding:24,maxWidth:440,width:'100%' }}>
+            <p id="dup-titulo" style={{ fontWeight:700,marginBottom:8,color:'#454247' }}>Ya hay un registro con ese expediente</p>
+            <p style={{ fontSize:13,color:'#454247',marginBottom:18 }}>
+              El expediente <strong>{duplicado.expediente}</strong> ya tiene {UNICO_POR_EXPEDIENTE[section]} registrada. Solo puede haber una por
+              expediente. ¿Quieres modificar la que ya existe? (Ahí puedes agregar sus conceptos de condena.)
+            </p>
+            <div style={{ display:'flex',gap:10,justifyContent:'flex-end',flexWrap:'wrap' }}>
+              <button className="btn-outline" onClick={() => setDuplicado(null)}>Seguir editando</button>
+              <button className="btn-ine" onClick={() => { setEditing(duplicado); setDuplicado(null); setShowForm(true) }}>Modificar la existente</button>
+            </div>
+          </div>
+        </div>
+      )}
       {pila && !showForm && (
         <DetalleRegistro title={title} schemas={schemas} pila={pila} setPila={setPila} canEdit={canEdit}
           onEdit={() => { setEditing(pila[pila.length - 1].row); setPila(null); setShowForm(true) }}
@@ -646,6 +752,23 @@ const colRequerims = (row, rel, abrir) => {
   const abiertos = r.filter(x => estatusLitigio('requerims', x)?.estatus && !['a_tiempo', 'fuera'].includes(estatusLitigio('requerims', x).estatus)).length
   return <Pastilla texto={abiertos ? `${r.length} · ${abiertos} abierto${abiertos > 1 ? 's' : ''}` : `${r.length} · atendidos`} tono={abiertos ? 'pendiente' : 'ok'}
     title={r.length > 1 ? `Ver los ${r.length} requerimientos` : 'Ver el requerimiento'} onClick={abrirLigados(abrir, 'emplaz', row, 'requerims', r)} />
+}
+// Sentencias → conceptos de condena / absolución (cuántos y cuántos siguen pendientes)
+const colConceptos = (row, rel, abrir) => {
+  const c = Array.isArray(row.condenas) ? row.condenas : []
+  if (!c.length) return <Pastilla texto="—" tono="vacio" />
+  const condenas = c.filter(f => f.sentido !== 'Absolución').length
+  const pendientes = c.filter(f => ['vencido', 'urgente', 'proximo', 'en_plazo'].includes(estatusConcepto(f)?.estatus)).length
+  const texto = `${c.length} · ${condenas} condena${condenas === 1 ? '' : 's'}${pendientes ? ` · ${pendientes} pendiente${pendientes === 1 ? '' : 's'}` : ''}`
+  return <Pastilla texto={texto} tono={pendientes ? 'pendiente' : 'neutro'} title="Ver los conceptos de la sentencia"
+    onClick={abrir && (() => abrir([{ section: 'sentencias', row }]))} />
+}
+// Sentencias → incidentes del expediente
+const colIncidentes = (row, rel, abrir) => {
+  const i = otrosDe(rel, row, 'incidentes', 'sentencias')
+  if (!i.length) return <Pastilla texto="—" tono="vacio" />
+  return <Pastilla texto={String(i.length)} tono="neutro" title={i.length > 1 ? `Ver los ${i.length} incidentes` : 'Ver el incidente'}
+    onClick={abrirLigados(abrir, 'sentencias', row, 'incidentes', i)} />
 }
 // Sentencias / requerimientos → ¿tiene emplazamiento registrado?
 const colEmplaz = (propia) => (row, rel, abrir) => {
@@ -697,6 +820,18 @@ const S_SENTENCIAS = [
   { key:'fechaVencimiento',  label:'Fecha Vencimiento', type:'date' },
   { key:'abogado',           label:'Abogado',          type:'select', catalogo:true, multiple:true },
   { key:'fechaEntregaTEPJF', label:'Entrega TEPJF',    type:'date', entregaBadge:'fechaVencimiento' },
+  { key:'condenas',          label:'Conceptos de condena o absolución', type:'lista', wide:true, formOnly:true,
+    venceDesde:'fechaNotificacion', renglon:'Concepto', agregar:'Agregar concepto', nuevo:{ sentido:'Condena' },
+    ayuda:'Cada prestación con su sentido y su plazo; el vencimiento se calcula desde la notificación (se puede corregir).',
+    columnas:[
+      { key:'concepto',     label:'Concepto (prestación)', wide:true },
+      { key:'sentido',      label:'Sentido', type:'select', options:['Condena', 'Absolución'] },
+      { key:'plazo',        label:'Plazo (días)', type:'number' },
+      { key:'vencimiento',  label:'Vencimiento', type:'date' },
+      { key:'cumplimiento', label:'Cumplimiento', type:'date' },
+    ] },
+  { key:'_conceptos',        label:'Conceptos',        tableOnly:true, calc: colConceptos },
+  { key:'_incidentes',       label:'Incidentes',       tableOnly:true, calc: colIncidentes },
   { key:'_emplaz',           label:'Emplazamiento',    tableOnly:true, calc: colEmplaz('sentencias') },
 ]
 const S_REQUERIMS = [
