@@ -746,7 +746,9 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
 
 /* ─── COLUMNAS DEL MISMO EXPEDIENTE ──────────────────────────────────────── */
 const Pastilla = ({ texto, tono = 'neutro', title, onClick }) => {
-  const t = { neutro: ['#F7F5F3', '#454247', '#E3DFDA'], ok: ['#ECFDF5', '#065F46', '#A7F3D0'], pendiente: ['#FFFBEB', '#92400E', '#FCD34D'], vacio: ['transparent', '#B2B2B2', 'transparent'] }[tono]
+  const sem = (c) => [c.fondo, c.texto, c.borde]
+  const t = { neutro: ['#F7F5F3', '#454247', '#E3DFDA'], ok: ['#ECFDF5', '#065F46', '#A7F3D0'], pendiente: ['#FFFBEB', '#92400E', '#FCD34D'], vacio: ['transparent', '#B2B2B2', 'transparent'],
+    rojo: sem(COLORES.vencido), ambar: sem(COLORES.ambar), verde: sem(COLORES.verde) }[tono]
   const estilo = { display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:'nowrap',
     background:t[0],color:t[1],border:`1px solid ${t[2]}` }
   if (!onClick) return <span title={title} style={estilo}>{texto}</span>
@@ -789,20 +791,49 @@ const colPlazoSentencia = (row) => {
   if (p.length === 1) return `${p[0]} días`
   return <Pastilla texto="Varios plazos" tono="neutro" title={`${p.join(', ')} días`} />
 }
+// Conceptos de condena con vencimiento, cada uno con su estatus, del más urgente al menos
+const ORDEN_URGENCIA = { vencido: 0, hoy: 1, ambar: 2, verde: 3 }
+const NOMBRE_ESTATUS = { vencido: 'vencido', hoy: 'vence hoy', ambar: 'por vencer', verde: 'en tiempo', a_tiempo: 'cumplido a tiempo', fuera: 'cumplido fuera de plazo' }
+const conceptosConEstatus = (row) => (Array.isArray(row.condenas) ? row.condenas : [])
+  .map((f, i) => ({ f, i, est: estatusConcepto(f, row) }))
+  .filter(x => x.est && x.est.estatus !== 'sin_fecha')
+const pendientesPorUrgencia = (row) => conceptosConEstatus(row)
+  .filter(x => x.est.estatus in ORDEN_URGENCIA)
+  .sort((a, b) => ORDEN_URGENCIA[a.est.estatus] - ORDEN_URGENCIA[b.est.estatus] || a.f.vencimiento.localeCompare(b.f.vencimiento))
+const listaConceptos = (row) => conceptosConEstatus(row)
+  .map(x => `${x.f.concepto || `Concepto ${x.i + 1}`}: ${fmtDate(x.f.vencimiento)} (${NOMBRE_ESTATUS[x.est.estatus]})`).join(' · ')
+
 const colVencSentencia = (row) => {
   const v = vencimientosSentencia(row)
   if (!v.length) return <span style={{ color:'#B2B2B2' }}>—</span>
   if (v.length === 1) return <FechaSemaforo fecha={v[0]} est={estatusLitigio('sentencias', row)} />
-  return <Pastilla texto="Varios vencimientos" tono="neutro" title={v.map(fmtDate).join(', ')} />
+  // Varios: el más urgente de lo pendiente, con su semáforo, y cuántos más hay
+  const pend = pendientesPorUrgencia(row)
+  if (!pend.length) return <Pastilla texto="Varios vencimientos ✓" tono="neutro" title={listaConceptos(row)} />
+  const { f, est } = pend[0]
+  const otros = conceptosConEstatus(row).length - 1
+  return (
+    <span title={listaConceptos(row)} style={{ display:'inline-flex',alignItems:'center',gap:4 }}>
+      <FechaSemaforo fecha={f.vencimiento} est={est} />
+      {otros > 0 && <span style={{ fontSize:11,fontWeight:700,color:'#828A91' }}>+{otros}</span>}
+    </span>
+  )
 }
 // Sentencias → conceptos de condena / absolución (cuántos y cuántos siguen pendientes)
+// Cuántos conceptos hay de cada color; la pastilla toma el color del peor
 const colConceptos = (row, rel, abrir) => {
   const c = Array.isArray(row.condenas) ? row.condenas : []
   if (!c.length) return <Pastilla texto="—" tono="vacio" />
+  const cuenta = { rojo: 0, ambar: 0, verde: 0 }
+  for (const x of pendientesPorUrgencia(row)) cuenta[{ vencido: 'rojo', hoy: 'rojo', ambar: 'ambar', verde: 'verde' }[x.est.estatus]]++
+  const partes = []
+  if (cuenta.rojo) partes.push(`🔴 ${cuenta.rojo} vencido${cuenta.rojo === 1 ? '' : 's'}`)
+  if (cuenta.ambar) partes.push(`🟡 ${cuenta.ambar} por vencer`)
+  if (cuenta.verde) partes.push(`🟢 ${cuenta.verde} en tiempo`)
   const condenas = c.filter(f => f.sentido !== 'Absolución').length
-  const pendientes = c.filter(f => ['vencido', 'hoy', 'ambar', 'verde'].includes(estatusConcepto(f, row)?.estatus)).length
-  const texto = `${c.length} · ${condenas} condena${condenas === 1 ? '' : 's'}${pendientes ? ` · ${pendientes} pendiente${pendientes === 1 ? '' : 's'}` : ''}`
-  return <Pastilla texto={texto} tono={pendientes ? 'pendiente' : 'neutro'} title="Ver los conceptos de la sentencia"
+  const texto = partes.length ? `${c.length} · ${partes.join(' · ')}` : `${c.length} · ${condenas} condena${condenas === 1 ? '' : 's'}${condenas ? ' ✓' : ''}`
+  const tono = cuenta.rojo ? 'rojo' : cuenta.ambar ? 'ambar' : cuenta.verde ? 'verde' : 'neutro'
+  return <Pastilla texto={texto} tono={tono} title={listaConceptos(row) || 'Ver los conceptos de la sentencia'}
     onClick={abrir && (() => abrir([{ section: 'sentencias', row }]))} />
 }
 // Sentencias → incidentes del expediente
