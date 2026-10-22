@@ -17,6 +17,9 @@ export const AbogadosCtx = React.createContext(null)
 // "Requerimientos", "Emplazamiento", la sección "Del mismo expediente" del detalle y las
 // sugerencias al capturar el expediente). RI-Consultas no lo usa.
 const RelacionesCtx = React.createContext(null)
+// Abre la ventana de detalle con una "pila" de registros: [{ section, row, enfocar? }]. La
+// provee cada SectionView (las pastillas de las columnas ligadas la usan).
+const VerCtx = React.createContext(null)
 const SECTIONS = ['actores','emplaz','noemplaz','sentencias','requerims','cumplims','incidentes','amparos','conciliacion','oic','reencauz']
 
 /* ─── UTILITIES ─────────────────────────────────────────────────────────── */
@@ -233,35 +236,50 @@ function RecordForm({ title, schemas, initial, onSave, onClose, saving }) {
 
 // Detalle de un registro: todos sus campos (también los que no salen en la tabla), con
 // Editar y Cerrar. Se abre al hacer clic en un renglón.
-// Del mismo expediente: los registros de las demás secciones, con sus fechas y estatus
-function DelMismoExpediente({ row, section }) {
+// Del mismo expediente: los registros de las demás secciones, con sus fechas y estatus. Cada
+// tarjeta abre el detalle de ese registro (`onAbrir`). `enfocar`: sección a la que se lleva la vista.
+function DelMismoExpediente({ row, section, onAbrir, enfocar }) {
   const rel = React.useContext(RelacionesCtx)
+  const ref = React.useRef(null)
+  useEffect(() => {
+    if (enfocar) ref.current?.querySelector(`[data-seccion="${enfocar}"]`)?.scrollIntoView({ block: 'center' })
+  }, [enfocar, row])
   if (!rel || !row.expediente) return null
   const otros = relacionados(rel.idx, row, section)
   const secciones = SECCIONES_RELACION.filter(k => otros[k]?.length)
   return (
-    <section style={{ marginTop:20,paddingTop:16,borderTop:'1px solid #E3DFDA' }}>
-      <h3 style={{ fontSize:13,fontWeight:700,color:'#454247',margin:'0 0 10px' }}>Del mismo expediente</h3>
+    <section ref={ref} style={{ marginTop:20,paddingTop:16,borderTop:'1px solid #E3DFDA' }}>
+      <h3 style={{ fontSize:13,fontWeight:700,color:'#454247',margin:'0 0 2px' }}>Del mismo expediente</h3>
+      <p style={{ fontSize:11,color:'#828A91',margin:'0 0 10px' }}>Haz clic en cualquiera para ver su detalle.</p>
       {!secciones.length && <p style={{ fontSize:12,color:'#828A91',margin:0 }}>No hay registros de este expediente en otras secciones.</p>}
       <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
-        {secciones.flatMap(k => otros[k].map(r => {
+        {secciones.flatMap(k => otros[k].map((r, i) => {
           const est = estatusLitigio(k, r)
           const datos = (SCHEMAS[k] || []).filter(c => c.key !== 'expediente' && !c.calc && r[c.key] &&
             (c.type === 'date' || c.key === 'estatus' || c.key === 'actor' || c.key === 'abogado' || c.key === 'sentido'))
+          const resaltar = enfocar === k
           return (
-            <div key={`${k}-${r.id}`} style={{ background:'#FBFAF8',border:'1px solid #EDEAE6',borderRadius:8,padding:'8px 12px' }}>
-              <div style={{ display:'flex',flexWrap:'wrap',alignItems:'center',gap:8,justifyContent:'space-between' }}>
+            <button key={`${k}-${r.id}`} type="button" onClick={() => onAbrir(k, r)} data-seccion={i === 0 ? k : undefined}
+              title={`Ver el detalle de ${SECTION_TITLES[k].toLowerCase()}`}
+              style={{ textAlign:'left',width:'100%',cursor:'pointer',background: resaltar ? '#FFFBEB' : '#FBFAF8',
+                border:`1px solid ${resaltar ? '#FCD34D' : '#EDEAE6'}`,borderRadius:8,padding:'8px 12px' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#828A91' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = resaltar ? '#FCD34D' : '#EDEAE6' }}>
+              <span style={{ display:'flex',flexWrap:'wrap',alignItems:'center',gap:8,justifyContent:'space-between' }}>
                 <span style={{ fontSize:12,fontWeight:700,color:'#454247' }}>
                   {SECTION_TITLES[k]}{r.expediente !== row.expediente && <span style={{ fontWeight:400,color:'#828A91' }}> · {r.expediente}</span>}
                 </span>
-                {est && est.estatus !== 'sin_fecha' && <EstatusAsunto a={est} />}
-              </div>
+                <span style={{ display:'inline-flex',alignItems:'center',gap:8 }}>
+                  {est && est.estatus !== 'sin_fecha' && <EstatusAsunto a={est} />}
+                  <span aria-hidden="true" style={{ color:'#828A91',fontSize:14 }}>›</span>
+                </span>
+              </span>
               {datos.length > 0 && (
-                <p style={{ fontSize:12,color:'#454247',margin:'4px 0 0' }}>
+                <span style={{ display:'block',fontSize:12,color:'#454247',margin:'4px 0 0' }}>
                   {datos.map(c => `${c.label}: ${c.type === 'date' ? fmtDate(r[c.key]) : r[c.key]}`).join(' · ')}
-                </p>
+                </span>
               )}
-            </div>
+            </button>
           )
         }))}
       </div>
@@ -269,7 +287,20 @@ function DelMismoExpediente({ row, section }) {
   )
 }
 
-function DetalleRegistro({ title, schemas, row, section, canEdit, onEdit, onClose }) {
+// Detalle de un registro: todos sus campos, con Editar y Cerrar. En Litigio se puede navegar a
+// los registros ligados (`pila`: de dónde se viene) y editar el que se está viendo, aunque sea
+// de otra sección. En RI-Consultas (sin relaciones) Editar abre el formulario de la tabla.
+function DetalleRegistro({ pila, setPila, title, schemas, canEdit, onEdit, onClose }) {
+  const rel = React.useContext(RelacionesCtx)
+  const [editando, setEditando] = useState(false)
+  const [guardando, setGuardando] = useState(false)
+  const { section, row, enfocar } = pila[pila.length - 1]
+  // Al saltar a otro registro, la ventana vuelve arriba (salvo que haya que enfocar una lista)
+  const arriba = React.useRef(null)
+  useEffect(() => { if (!enfocar) arriba.current?.scrollIntoView({ block: 'start' }) }, [pila.length, row, enfocar])
+  const sch = rel ? (SCHEMAS[section] || schemas) : schemas
+  const tit = rel ? SECTION_TITLES[section] : title
+
   const valor = (c) => {
     const v = row[c.key]
     if (c.entregaBadge) return <EntregaBadge entrega={v} venc={row[c.entregaBadge]} />
@@ -280,16 +311,47 @@ function DetalleRegistro({ title, schemas, row, section, canEdit, onEdit, onClos
     return <span style={{ whiteSpace:'pre-wrap',overflowWrap:'anywhere' }}>{String(v)}</span>
   }
   // Primero los campos con algo capturado; los vacíos al final, para que lo importante se vea
-  const llenos = schemas.filter(c => !c.tableOnly && row[c.key] !== undefined && row[c.key] !== null && row[c.key] !== '')
-  const vacios = schemas.filter(c => !c.tableOnly && !llenos.includes(c))
+  const llenos = sch.filter(c => !c.tableOnly && row[c.key] !== undefined && row[c.key] !== null && row[c.key] !== '')
+  const vacios = sch.filter(c => !c.tableOnly && !llenos.includes(c))
   const Campo = ({ c }) => (
     <div style={c.wide || c.type === 'textarea' ? { gridColumn:'1 / -1' } : {}}>
       <dt style={{ fontSize:11,fontWeight:700,color:'#828A91',marginBottom:3 }}>{c.label}</dt>
       <dd style={{ fontSize:13,color:'#454247',margin:0 }}>{valor(c)}</dd>
     </div>
   )
+
+  if (editando) return (
+    <RecordForm title={`Editar — ${tit}`} schemas={sch} initial={row} saving={guardando}
+      onClose={() => setEditando(false)}
+      onSave={async (form) => {
+        setGuardando(true)
+        try {
+          const guardado = await updateDalRecord(section, row.id, form)
+          rel.actualizar(section, guardado)
+          setPila(p => [...p.slice(0, -1), { section, row: guardado }])
+          setEditando(false)
+        } catch { alert('Error al guardar el registro') }
+        finally { setGuardando(false) }
+      }} />
+  )
+
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={rel && row.expediente ? `${tit} · ${row.expediente}` : tit} onClose={onClose}>
+      <div ref={arriba} />
+      {pila.length > 1 && (
+        <nav aria-label="De dónde vienes" style={{ display:'flex',flexWrap:'wrap',alignItems:'center',gap:6,fontSize:12,marginBottom:14 }}>
+          {pila.slice(0, -1).map((x, i) => (
+            <React.Fragment key={i}>
+              <button type="button" onClick={() => setPila(p => p.slice(0, i + 1))}
+                style={{ border:'none',background:'none',cursor:'pointer',color:'#454247',textDecoration:'underline',padding:0,fontSize:12 }}>
+                {i === pila.length - 2 ? '← ' : ''}{SECTION_TITLES[x.section]}
+              </button>
+              <span aria-hidden="true" style={{ color:'#828A91' }}>›</span>
+            </React.Fragment>
+          ))}
+          <span style={{ fontWeight:700,color:'#454247' }}>{tit}</span>
+        </nav>
+      )}
       <dl style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:'14px 20px',margin:0 }}>
         {llenos.map(c => <Campo key={c.key} c={c} />)}
       </dl>
@@ -298,10 +360,11 @@ function DetalleRegistro({ title, schemas, row, section, canEdit, onEdit, onClos
           Sin capturar: {vacios.map(c => c.label).join(', ')}.
         </p>
       )}
-      <DelMismoExpediente row={row} section={section} />
+      <DelMismoExpediente row={row} section={section} enfocar={enfocar}
+        onAbrir={(k, r) => setPila(p => [...p.slice(0, -1), { section, row }, { section: k, row: r }])} />
       <div style={{ display:'flex',gap:12,justifyContent:'flex-end',marginTop:20,paddingTop:16,borderTop:'1px solid #E3DFDA' }}>
         <button className="btn-outline" onClick={onClose}>Cerrar</button>
-        {canEdit && <button className="btn-ine" onClick={onEdit}>Editar</button>}
+        {canEdit && <button className="btn-ine" onClick={() => (rel ? setEditando(true) : onEdit())}>Editar</button>}
       </div>
     </Modal>
   )
@@ -310,6 +373,7 @@ function DetalleRegistro({ title, schemas, row, section, canEdit, onEdit, onClos
 function DataTable({ schemas, rows, onView, onEdit, onDelete, canEdit, canDelete }) {
   const cols = schemas.filter(s => !s.formOnly)
   const rel = React.useContext(RelacionesCtx)
+  const ver = React.useContext(VerCtx)
   return (
     <div style={{ overflowX:'auto' }}>
       <table style={{ width:'100%',fontSize:13,borderCollapse:'separate',borderSpacing:0 }}>
@@ -341,7 +405,7 @@ function DataTable({ schemas, rows, onView, onEdit, onDelete, canEdit, canDelete
                 <td key={c.key} title={typeof row[c.key] === 'string' && row[c.key].length > 25 ? row[c.key] : undefined}
                   style={{ padding:'10px 12px',whiteSpace:'nowrap',maxWidth:c.wide ? 320 : 200,overflow:'hidden',textOverflow:'ellipsis' }}>
                   {c.calc
-                    ? (rel ? c.calc(row, rel) : null)
+                    ? (rel ? c.calc(row, rel, ver?.abrir) : null)
                     : c.entregaBadge
                     ? <EntregaBadge entrega={row[c.key]} venc={row[c.entregaBadge]} />
                     : c.isVenc
@@ -389,7 +453,7 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
   const [showForm,   setShowForm]   = useState(false)
   const [editing,    setEditing]    = useState(null)
   const [deleting,   setDeleting]   = useState(null)
-  const [viendo,     setViendo]     = useState(null)
+  const [pila,       setPila]       = useState(null)   // detalle abierto: [{ section, row, enfocar? }]
   const [search,     setSearch]     = useState('')
   const [saving,     setSaving]     = useState(false)
   const [page,       setPage]       = useState(0)
@@ -485,11 +549,13 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
             ↓ Excel
           </button>
         </div>
+        <VerCtx.Provider value={{ abrir: setPila }}>
         <DataTable schemas={schemas} rows={paginated}
-          onView={r => setViendo(r)}
+          onView={r => setPila([{ section, row: r }])}
           onEdit={r => { setEditing(r); setShowForm(true) }}
           onDelete={r => setDeleting(r)}
           canEdit={canEdit} canDelete={canDelete} />
+        </VerCtx.Provider>
         {filtered.length > PAGE_SIZE && (
           <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',
             padding:'10px 16px',borderTop:'1px solid #E3DFDA',background:'#FDFCFE' }}>
@@ -534,46 +600,60 @@ export function SectionView({ title, section, schemas, records, onUpdate, user, 
           saving={saving} />
       )}
       {deleting && <ConfirmDelete onConfirm={handleDelete} onCancel={() => setDeleting(null)} />}
-      {viendo && !showForm && (
-        <DetalleRegistro title={title} schemas={schemas} row={viendo} section={section} canEdit={canEdit}
-          onEdit={() => { setEditing(viendo); setViendo(null); setShowForm(true) }}
-          onClose={() => setViendo(null)} />
+      {pila && !showForm && (
+        <DetalleRegistro title={title} schemas={schemas} pila={pila} setPila={setPila} canEdit={canEdit}
+          onEdit={() => { setEditing(pila[pila.length - 1].row); setPila(null); setShowForm(true) }}
+          onClose={() => setPila(null)} />
       )}
     </div>
   )
 }
 
 /* ─── COLUMNAS DEL MISMO EXPEDIENTE ──────────────────────────────────────── */
-const Pastilla = ({ texto, tono = 'neutro', title }) => {
+const Pastilla = ({ texto, tono = 'neutro', title, onClick }) => {
   const t = { neutro: ['#F7F5F3', '#454247', '#E3DFDA'], ok: ['#ECFDF5', '#065F46', '#A7F3D0'], pendiente: ['#FFFBEB', '#92400E', '#FCD34D'], vacio: ['transparent', '#B2B2B2', 'transparent'] }[tono]
+  const estilo = { display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:'nowrap',
+    background:t[0],color:t[1],border:`1px solid ${t[2]}` }
+  if (!onClick) return <span title={title} style={estilo}>{texto}</span>
+  // Clic: abre el registro ligado (sin abrir además el detalle del renglón)
   return (
-    <span title={title} style={{ display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:'nowrap',
-      background:t[0],color:t[1],border:`1px solid ${t[2]}` }}>{texto}</span>
+    <button type="button" title={title} onClick={e => { e.stopPropagation(); onClick() }}
+      style={{ ...estilo, cursor:'pointer' }}
+      onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
+      onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}>{texto}</button>
   )
 }
 const otrosDe = (rel, row, seccion, propia) => relacionados(rel.idx, row, propia)[seccion] || []
+// Abre el ligado: si es uno, su detalle (con el renglón para volver); si son varios, el detalle
+// del renglón llevado a esa lista.
+const abrirLigados = (abrir, propia, row, seccion, lista) => abrir && (() => abrir(lista.length === 1
+  ? [{ section: propia, row }, { section: seccion, row: lista[0] }]
+  : [{ section: propia, row, enfocar: seccion }]))
 
 // Emplazamientos / requerimientos → ¿ya hay sentencia?
-const colSentencia = (propia) => (row, rel) => {
+const colSentencia = (propia) => (row, rel, abrir) => {
   const s = otrosDe(rel, row, 'sentencias', propia)
   if (!s.length) return <Pastilla texto="Pendiente" tono="pendiente" title="Aún no hay sentencia registrada para este expediente" />
   const fechas = s.map(x => x.fechaNotificacion).filter(Boolean).sort()
   const texto = fechas.length ? `✓ ${fmtDate(fechas[fechas.length - 1])}` : '✓ Registrada'
-  return <Pastilla texto={s.length > 1 ? `${texto} (${s.length})` : texto} tono="ok" title={`${s.length} sentencia(s); fecha de notificación más reciente`} />
+  return <Pastilla texto={s.length > 1 ? `${texto} (${s.length})` : texto} tono="ok"
+    title={s.length > 1 ? `Ver las ${s.length} sentencias` : 'Ver la sentencia'} onClick={abrirLigados(abrir, propia, row, 'sentencias', s)} />
 }
 // Emplazamientos → requerimientos (cuántos y cuántos siguen abiertos)
-const colRequerims = (row, rel) => {
+const colRequerims = (row, rel, abrir) => {
   const r = otrosDe(rel, row, 'requerims', 'emplaz')
   if (!r.length) return <Pastilla texto="—" tono="vacio" />
   const abiertos = r.filter(x => estatusLitigio('requerims', x)?.estatus && !['a_tiempo', 'fuera'].includes(estatusLitigio('requerims', x).estatus)).length
-  return <Pastilla texto={abiertos ? `${r.length} · ${abiertos} abierto${abiertos > 1 ? 's' : ''}` : `${r.length} · atendidos`} tono={abiertos ? 'pendiente' : 'ok'} />
+  return <Pastilla texto={abiertos ? `${r.length} · ${abiertos} abierto${abiertos > 1 ? 's' : ''}` : `${r.length} · atendidos`} tono={abiertos ? 'pendiente' : 'ok'}
+    title={r.length > 1 ? `Ver los ${r.length} requerimientos` : 'Ver el requerimiento'} onClick={abrirLigados(abrir, 'emplaz', row, 'requerims', r)} />
 }
 // Sentencias / requerimientos → ¿tiene emplazamiento registrado?
-const colEmplaz = (propia) => (row, rel) => {
+const colEmplaz = (propia) => (row, rel, abrir) => {
   const e = otrosDe(rel, row, 'emplaz', propia)
   if (!e.length) return <Pastilla texto="Sin registro" tono="vacio" title="No hay emplazamiento registrado para este expediente" />
   const f = e.map(x => x.fechaEmplaz).filter(Boolean).sort()[0]
-  return <Pastilla texto={f ? `✓ ${fmtDate(f)}` : '✓ Registrado'} tono="ok" />
+  return <Pastilla texto={f ? `✓ ${fmtDate(f)}` : '✓ Registrado'} tono="ok" title="Ver el emplazamiento"
+    onClick={abrirLigados(abrir, propia, row, 'emplaz', e)} />
 }
 
 /* ─── SECTION SCHEMAS ───────────────────────────────────────────────────── */
@@ -826,6 +906,7 @@ export default function DALView({ user, onDashboard }) {
 
   // Registros unidos por expediente; se recalcula con cada captura
   const relaciones = useMemo(() => loading ? null : {
+    actualizar: (section, guardado) => setStore(st => ({ ...st, [section]: st[section].map(r => r.id === guardado.id ? guardado : r) })),
     idx: indiceExpedientes(store),
     expedientes: [...new Set(SECTIONS.flatMap(s => (store[s] || []).map(r => (r.expediente || '').trim()).filter(Boolean)))].sort(),
   }, [store, loading])
